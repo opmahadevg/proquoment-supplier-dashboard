@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/send-forgot-password", "destination": "/api/send-forgot-password" },
+    { "source": "/api/send-quote-confirmation", "destination": "/api/send-quote-confirmation" },
+    { "source": "/api/send-test-notification", "destination": "/api/send-test-notification" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
