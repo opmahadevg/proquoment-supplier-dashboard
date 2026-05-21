@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Navigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
@@ -32,6 +32,10 @@ const ROLE_CONFIG = {
 }
 
 export default function Register() {
+  useEffect(() => {
+    window.location.href = 'https://form.proquoment.in';
+  }, []);
+
   const { user, loading, register } = useAuth()
   const navigate = useNavigate()
 

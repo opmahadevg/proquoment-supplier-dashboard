@@ -327,9 +327,9 @@ export default function Login() {
 
           <p className="text-sm text-center text-[#9e9e9e] mt-5">
             New {accountType.toLowerCase()}?{' '}
-            <Link to="/register" className="text-[#0f00da] font-semibold hover:underline">
+            <a href="https://form.proquoment.in" className="text-[#0f00da] font-semibold hover:underline">
               Create an account
-            </Link>
+            </a>
           </p>
 
           {/* Demo accounts */}
