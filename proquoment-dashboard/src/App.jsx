@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
-import Register from './pages/Register'
 import ResetPassword from './pages/ResetPassword'
 import Home from './pages/Home'
 import MatchedRFQs from './pages/MatchedRFQs'
@@ -35,7 +34,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/"

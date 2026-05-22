@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { submitQuotation } from '../lib/procurementApi'
+import { submitBid } from '../lib/supplierApi'
 
 const INITIAL_MESSAGES = [
   {
@@ -24,7 +25,7 @@ const AI_RESPONSES = [
 const SUBMIT_INDEX = 5
 
 export default function QuoteSubmissionChat() {
-  const { user } = useAuth()
+  const { user, isDemo } = useAuth()
   const [messages, setMessages] = useState(INITIAL_MESSAGES)
   const [input, setInput] = useState('')
   const [aiIndex, setAiIndex] = useState(0)
@@ -83,13 +84,31 @@ export default function QuoteSubmissionChat() {
       if (nextIndex === SUBMIT_INDEX) {
         sendConfirmationEmail(rfqContext)
         // Persist to shared Supabase → notify Admin
-        submitQuotation({
-          rfqId: 'RFQ-MATCHED',
-          unitPrice: 28.50,
-          qty: 500,
-          deliveryDays: 21,
-          notes: 'Submitted via AI Quote Assistant',
-        }).catch(err => console.error('submitQuotation:', err))
+        if (isDemo) {
+          submitQuotation({
+            rfqId: 'RFQ-MATCHED',
+            unitPrice: 28.50,
+            qty: 500,
+            deliveryDays: 21,
+            notes: 'Submitted via AI Quote Assistant',
+          }).catch(err => console.error('submitQuotation:', err))
+        } else {
+          submitBid(
+            'RFQ-MATCHED',
+            user?.authUserId,
+            user?.supplierId,
+            user?.company || user?.name || 'Supplier',
+            {
+              qty: 500,
+              unitPrice: 28.50,
+              moq: 500,
+              leadTime: 21,
+              paymentTerms: 'Net 30',
+              notes: 'Submitted via AI Quote Assistant'
+            },
+            false
+          ).catch(err => console.error('submitBid:', err))
+        }
       }
     }, delay)
   }

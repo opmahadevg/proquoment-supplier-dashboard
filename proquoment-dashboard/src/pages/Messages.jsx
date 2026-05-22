@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { getConversations, sendMessage as dbSendMessage } from '../lib/db'
+import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
+import * as supplierApi from '../lib/supplierApi'
 
 const conversations = [
   {
@@ -63,27 +66,79 @@ const conversations = [
 ]
 
 export default function Messages() {
-  const [convList, setConvList] = useState(conversations)
-  const [activeConv, setActiveConv] = useState(conversations[0])
+  const { user, isDemo } = useAuth()
+  const defaultAdminConv = {
+    id: 'new-conv',
+    name: 'Proquoment Admin',
+    avatar: 'A',
+    lastMessage: 'Start a conversation with Admin',
+    time: '',
+    unread: 0,
+    online: true,
+    messages: []
+  }
+
+  const [convList, setConvList] = useState(isDemo ? conversations : [defaultAdminConv])
+  const [activeConv, setActiveConv] = useState(isDemo ? conversations[0] : defaultAdminConv)
   const [input, setInput] = useState('')
-  const [messages, setMessages] = useState(conversations[0].messages)
+  const [messages, setMessages] = useState(isDemo ? conversations[0].messages : [])
   const [search, setSearch] = useState('')
   const [mobileView, setMobileView] = useState('list')
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
-    getConversations().then(data => {
-      if (data && data.length) {
-        setConvList(data)
-        setActiveConv(data[0])
-        setMessages(data[0].messages)
-      }
-    })
-  }, [])
+    if (isDemo) {
+      getConversations().then(data => {
+        if (data && data.length) {
+          setConvList(data)
+          setActiveConv(data[0])
+          setMessages(data[0].messages)
+        }
+      })
+    } else if (user?.authUserId) {
+      supplierApi.getConversations(user.authUserId, false).then(data => {
+        if (data && data.length) {
+          setConvList(data)
+          setActiveConv(data[0])
+          setMessages(data[0].messages)
+        } else {
+          setConvList([defaultAdminConv])
+          setActiveConv(defaultAdminConv)
+          setMessages([])
+        }
+      })
+    }
+  }, [isDemo, user])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Real-time messages subscriber
+  useEffect(() => {
+    if (isDemo || !user?.authUserId) return
+
+    const channel = supabase.channel('supplier-messages-realtime')
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'supplier_messages' },
+      (payload) => {
+        supplierApi.getConversations(user.authUserId, false).then(data => {
+          if (data && data.length) {
+            setConvList(data)
+            const activeId = activeConv?.id === 'new-conv' ? data[0].id : activeConv?.id
+            const current = data.find(c => c.id === activeId) || data[0]
+            setActiveConv(current)
+            setMessages(current.messages)
+          }
+        })
+      }
+    )
+    channel.subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [isDemo, user, activeConv])
 
   const handleSelect = (conv) => {
     setActiveConv(conv)
@@ -98,9 +153,31 @@ export default function Messages() {
     setInput('')
     const optimistic = { id: Date.now(), from: 'me', text, time: 'Just now' }
     setMessages(prev => [...prev, optimistic])
-    const saved = await dbSendMessage(activeConv.id, text)
-    if (saved) {
-      setMessages(prev => prev.map(m => m.id === optimistic.id ? saved : m))
+
+    if (isDemo) {
+      const saved = await dbSendMessage(activeConv.id, text)
+      if (saved) {
+        setMessages(prev => prev.map(m => m.id === optimistic.id ? saved : m))
+      }
+    } else {
+      try {
+        await supplierApi.sendMessageToAdmin(
+          user?.authUserId,
+          user?.supplierId,
+          user?.company || user?.name || 'Supplier',
+          text,
+          false
+        )
+        const updatedConvs = await supplierApi.getConversations(user?.authUserId, false)
+        if (updatedConvs && updatedConvs.length) {
+          setConvList(updatedConvs)
+          const newActive = updatedConvs.find(c => c.messages.some(m => m.text === text)) || updatedConvs[0]
+          setActiveConv(newActive)
+          setMessages(newActive.messages)
+        }
+      } catch (err) {
+        console.error('Failed to send message to admin:', err)
+      }
     }
   }
 

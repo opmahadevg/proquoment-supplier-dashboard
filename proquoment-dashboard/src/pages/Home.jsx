@@ -75,9 +75,9 @@ function StatCard({ label, rawValue, prefix, suffix, icon, change, positive, del
 }
 export default function Home() {
   const [isNewUser] = useState(false)
-  const { alertsList, setAlertsList, activityList, setActivityList } = useDashboard()
+  const { alertsList, setAlertsList, activityList, setActivityList, rfqList, bids, bulkOrders, sampleOrders } = useDashboard()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, isDemo } = useAuth()
   const { settings } = useSettings()
   const currency = settings.preferences.currency
 
@@ -94,6 +94,11 @@ export default function Home() {
       currency={currency}
       alerts={alertsList}
       activity={activityList}
+      isDemo={isDemo}
+      rfqList={rfqList}
+      bids={bids}
+      bulkOrders={bulkOrders}
+      sampleOrders={sampleOrders}
     />
   )
 }
@@ -144,13 +149,26 @@ function NewUserHome({ navigate, firstName }) {
   )
 }
 
-function ReturningUserHome({ navigate, firstName, currency, alerts, activity }) {
-  const statCards = [
-    { label: 'Active Bids',   rawValue: 12,    prefix: '',  suffix: '',  icon: 'gavel',         change: '+3 this week',      positive: true },
-    { label: 'Matched RFQs', rawValue: 28,    prefix: '',  suffix: '',  icon: 'request_quote', change: '+8 today',          positive: true },
-    { label: 'Won Orders',   rawValue: 5,     prefix: '',  suffix: '',  icon: 'check_circle',  change: '+1 this month',     positive: true },
-    { label: 'Revenue',      rawValue: 48200, prefix: currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '', suffix: '', icon: 'payments', change: '+12% vs last month', positive: true },
-  ]
+function ReturningUserHome({ navigate, firstName, currency, alerts, activity, isDemo, rfqList, bids, bulkOrders, sampleOrders }) {
+  // Calculate dynamic stats for live supplier
+  const activeBidsCount = bids.filter(b => ['pending', 'under_review'].includes((b.status || '').toLowerCase())).length
+  const matchedRfqsCount = rfqList.length
+  const wonOrdersCount = bids.filter(b => ['won', 'accepted'].includes((b.status || '').toLowerCase())).length
+  const revenueSum = bids.filter(b => ['won', 'accepted'].includes((b.status || '').toLowerCase())).reduce((acc, curr) => acc + Number(curr.total_value || curr.unit_price * curr.moq || 0), 0)
+
+  const statCards = isDemo
+    ? [
+        { label: 'Active Bids',   rawValue: 12,    prefix: '',  suffix: '',  icon: 'gavel',         change: '+3 this week',      positive: true },
+        { label: 'Matched RFQs', rawValue: 28,    prefix: '',  suffix: '',  icon: 'request_quote', change: '+8 today',          positive: true },
+        { label: 'Won Orders',   rawValue: 5,     prefix: '',  suffix: '',  icon: 'check_circle',  change: '+1 this month',     positive: true },
+        { label: 'Revenue',      rawValue: 48200, prefix: currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '', suffix: '', icon: 'payments', change: '+12% vs last month', positive: true },
+      ]
+    : [
+        { label: 'Active Bids',   rawValue: activeBidsCount,  prefix: '',  suffix: '',  icon: 'gavel',         change: 'Live',              positive: true },
+        { label: 'Matched RFQs', rawValue: matchedRfqsCount, prefix: '',  suffix: '',  icon: 'request_quote', change: 'Live',              positive: true },
+        { label: 'Won Orders',   rawValue: wonOrdersCount,   prefix: '',  suffix: '',  icon: 'check_circle',  change: 'Live',              positive: true },
+        { label: 'Revenue',      rawValue: revenueSum,       prefix: currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '', suffix: '', icon: 'payments', change: 'Live',              positive: true },
+      ]
 
   return (
     <div className="p-4 md:p-8">

@@ -5,8 +5,20 @@ import {
   getRFQs, getBids, getBulkOrders, getSampleOrders, getAlerts, getActivityLog,
   transformRFQ, transformBid, transformBulkOrder, transformSampleOrder
 } from '../lib/db'
+import * as supplierApi from '../lib/supplierApi'
 
 const DashboardContext = createContext(null)
+
+function fmtTimeAgo(isoStr) {
+  if (!isoStr) return ''
+  const diff = Date.now() - new Date(isoStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return `${mins} min ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} hour${hrs > 1 ? 's' : ''} ago`
+  const days = Math.floor(hrs / 24)
+  return `${days} day${days > 1 ? 's' : ''} ago`
+}
 
 export function useDashboard() {
   const ctx = useContext(DashboardContext)
@@ -15,7 +27,7 @@ export function useDashboard() {
 }
 
 export function DashboardProvider({ children }) {
-  const { isDemo } = useAuth()
+  const { isDemo, user } = useAuth()
 
   const [rfqList, setRfqList] = useState([])
   const [bids, setBids] = useState([])
@@ -40,25 +52,85 @@ export function DashboardProvider({ children }) {
   const refreshData = useCallback(async () => {
     try {
       setLoading(true)
-      const [
-        rfqsRes, bidsRes, bulkRes, sampleRes, alertsRes, activityRes
-      ] = await Promise.allSettled([
-        getRFQs(isDemo), getBids(isDemo), getBulkOrders(isDemo),
-        getSampleOrders(isDemo), getAlerts(isDemo), getActivityLog(isDemo)
-      ])
+      const authUserId = user?.authUserId
+      const supplierId = user?.supplierId
 
-      if (rfqsRes.status === 'fulfilled') setRfqList(rfqsRes.value || [])
-      if (bidsRes.status === 'fulfilled') setBids(bidsRes.value || [])
-      if (bulkRes.status === 'fulfilled') setBulkOrders(bulkRes.value || [])
-      if (sampleRes.status === 'fulfilled') setSampleOrders(sampleRes.value || [])
-      if (alertsRes.status === 'fulfilled') setAlertsList(alertsRes.value || [])
-      if (activityRes.status === 'fulfilled') setActivityList(activityRes.value || [])
+      let rfqsVal = []
+      let bidsVal = []
+      let bulkVal = []
+      let sampleVal = []
+      let alertsVal = []
+      let activityVal = []
+
+      if (isDemo) {
+        const [
+          rfqsRes, bidsRes, bulkRes, sampleRes, alertsRes, activityRes
+        ] = await Promise.allSettled([
+          getRFQs(true), getBids(true), getBulkOrders(true),
+          getSampleOrders(true), getAlerts(true), getActivityLog(true)
+        ])
+
+        if (rfqsRes.status === 'fulfilled') rfqsVal = rfqsRes.value || []
+        if (bidsRes.status === 'fulfilled') bidsVal = bidsRes.value || []
+        if (bulkRes.status === 'fulfilled') bulkVal = bulkRes.value || []
+        if (sampleRes.status === 'fulfilled') sampleVal = sampleRes.value || []
+        if (alertsRes.status === 'fulfilled') alertsVal = alertsRes.value || []
+        if (activityRes.status === 'fulfilled') activityVal = activityRes.value || []
+      } else {
+        if (authUserId) {
+          const [
+            rfqsRes, bidsRes, alertsRes
+          ] = await Promise.allSettled([
+            supplierApi.getAssignedRFQs(authUserId, false),
+            supplierApi.getBids(authUserId, false),
+            supplierApi.getSupplierNotifications(authUserId, false)
+          ])
+
+          if (rfqsRes.status === 'fulfilled') rfqsVal = rfqsRes.value || []
+          if (bidsRes.status === 'fulfilled') bidsVal = bidsRes.value || []
+          
+          if (alertsRes.status === 'fulfilled' && alertsRes.value) {
+            alertsVal = alertsRes.value.map(n => ({
+              id: n.id,
+              type: n.type || 'rfq',
+              icon: n.type === 'bid' ? 'gavel' : n.type === 'message' ? 'mail' : 'info',
+              color: n.type === 'bid' ? 'bg-[#ffdad6] text-[#ba1a1a]' : 'bg-[#e1e0ff] text-[#0f00da]',
+              title: n.title,
+              desc: n.message,
+              time: fmtTimeAgo(n.created_at),
+              action: n.action_url ? 'View' : null,
+              path: n.action_url,
+              read: n.read ?? false
+            }))
+          }
+
+          if (supplierId) {
+            const [bulkRes, sampleRes] = await Promise.allSettled([
+              supabase.from('bulk_orders').select('*').eq('supplier_id', supplierId).eq('is_demo', false),
+              supabase.from('sample_orders').select('*').eq('supplier_id', supplierId).eq('is_demo', false)
+            ])
+            if (bulkRes.status === 'fulfilled' && bulkRes.value?.data) {
+              bulkVal = bulkRes.value.data.map(transformBulkOrder)
+            }
+            if (sampleRes.status === 'fulfilled' && sampleRes.value?.data) {
+              sampleVal = sampleRes.value.data.map(transformSampleOrder)
+            }
+          }
+        }
+      }
+
+      setRfqList(rfqsVal)
+      setBids(bidsVal)
+      setBulkOrders(bulkVal)
+      setSampleOrders(sampleVal)
+      setAlertsList(alertsVal.filter(a => !a.read))
+      setActivityList(activityVal)
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
     } finally {
       setLoading(false)
     }
-  }, [isDemo])
+  }, [isDemo, user])
 
   // Initial load
   useEffect(() => {
@@ -74,9 +146,13 @@ export function DashboardProvider({ children }) {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'rfqs' },
       (payload) => {
-        // Filter: only process events matching current demo mode
         const rowIsDemo = payload.new?.is_demo ?? payload.old?.is_demo ?? false
         if (rowIsDemo !== isDemo) return
+
+        if (!isDemo) {
+          refreshData()
+          return
+        }
 
         if (payload.eventType === 'INSERT') {
           const mapped = transformRFQ(payload.new)
@@ -95,13 +171,20 @@ export function DashboardProvider({ children }) {
       }
     )
 
-    // Bids subscriber
+    // Quotes / Bids subscriber
     channel.on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'bids' },
+      { event: '*', schema: 'public', table: 'quotes' },
       (payload) => {
         const rowIsDemo = payload.new?.is_demo ?? payload.old?.is_demo ?? false
         if (rowIsDemo !== isDemo) return
+
+        if (!isDemo) {
+          const quoteUser = payload.new?.auth_supplier_id ?? payload.old?.auth_supplier_id
+          if (quoteUser !== user?.authUserId) return
+          refreshData()
+          return
+        }
 
         if (payload.eventType === 'INSERT') {
           const mapped = transformBid(payload.new)
@@ -127,6 +210,11 @@ export function DashboardProvider({ children }) {
       (payload) => {
         const rowIsDemo = payload.new?.is_demo ?? payload.old?.is_demo ?? false
         if (rowIsDemo !== isDemo) return
+
+        if (!isDemo) {
+          refreshData()
+          return
+        }
 
         if (payload.eventType === 'INSERT') {
           const mapped = transformBulkOrder(payload.new)
@@ -154,6 +242,11 @@ export function DashboardProvider({ children }) {
         const rowIsDemo = payload.new?.is_demo ?? payload.old?.is_demo ?? false
         if (rowIsDemo !== isDemo) return
 
+        if (!isDemo) {
+          refreshData()
+          return
+        }
+
         if (payload.eventType === 'INSERT') {
           const mapped = transformSampleOrder(payload.new)
           setSampleOrders(prev => {
@@ -171,13 +264,26 @@ export function DashboardProvider({ children }) {
       }
     )
 
-    // Alerts subscriber
+    // Alerts / Notifications subscriber
     channel.on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'alerts' },
+      { event: '*', schema: 'public', table: 'notifications' },
       (payload) => {
         const rowIsDemo = payload.new?.is_demo ?? payload.old?.is_demo ?? false
         if (rowIsDemo !== isDemo) return
+
+        if (!isDemo) {
+          const notifUser = payload.new?.supplier_id ?? payload.old?.supplier_id
+          const notifDashboard = payload.new?.target_dashboard ?? payload.old?.target_dashboard
+          if (notifDashboard === 'supplier' && (notifUser === user?.authUserId || !notifUser)) {
+            if (payload.eventType === 'INSERT') {
+              addToast(payload.new.title || 'New notification', 'info')
+            }
+            refreshData()
+          }
+          return
+        }
+
         getAlerts(isDemo).then(data => { if (data) setAlertsList(data) })
       }
     )
@@ -199,7 +305,7 @@ export function DashboardProvider({ children }) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [addToast, isDemo])
+  }, [addToast, isDemo, user, refreshData])
 
   const updateStatus = useCallback((id, status) => {
     setRfqList(prev => prev.map(r => r.id === id ? { ...r, status } : r))

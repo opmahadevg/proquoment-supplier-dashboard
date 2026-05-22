@@ -11,6 +11,7 @@ const DEMO_ACCOUNTS = [
     company: 'Hassan Industrial Supplies',
     industry: 'Industrial Metals & Pipes',
     phone: '+971 50 123 4567',
+    supplierId: 18,
   },
   {
     type: 'Supplier',
@@ -21,6 +22,7 @@ const DEMO_ACCOUNTS = [
     company: 'ValveTech India Pvt. Ltd.',
     industry: 'Valves & Fittings',
     phone: '+91 98765 43210',
+    supplierId: 19,
   },
   {
     type: 'Manufacturer',
@@ -31,6 +33,7 @@ const DEMO_ACCOUNTS = [
     company: 'Precision Manufacturing Co.',
     industry: 'CNC Machined Parts',
     phone: '+86 138 0000 1234',
+    supplierId: 20,
   },
   {
     type: 'Manufacturer',
@@ -41,6 +44,7 @@ const DEMO_ACCOUNTS = [
     company: 'HydroCast Industries',
     industry: 'Hydraulic Components',
     phone: '+91 99999 88888',
+    supplierId: 21,
   },
 ]
 
@@ -55,11 +59,13 @@ function buildUserObject(supabaseUser, profile) {
     id: supabaseUser.id,
     email: supabaseUser.email,
     name: profile?.name || meta.name || supabaseUser.email,
-    company: profile?.company || meta.company || '',
-    type: profile?.type || meta.type || 'Supplier',
-    role: profile?.role || meta.role || 'Owner',
-    industry: profile?.industry || meta.industry || '',
-    phone: profile?.phone || meta.phone || '',
+    company: profile?.name || meta.company || '',
+    type: 'Supplier',
+    role: meta.role || 'Owner',
+    industry: profile?.categories ? profile.categories.join(', ') : (meta.industry || ''),
+    phone: profile?.contact || meta.phone || '',
+    supplierId: profile?.id || meta.supplier_id || null,
+    authUserId: supabaseUser.id,
   }
 }
 
@@ -88,7 +94,7 @@ export function AuthProvider({ children }) {
   }
 
   const fetchProfile = async (userId) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    const { data } = await supabase.from('suppliers').select('*').eq('auth_user_id', userId).maybeSingle()
     setProfile(data || null)
     return data
   }
@@ -133,7 +139,7 @@ export function AuthProvider({ children }) {
 
     if (demoMatch) {
       const { password: _p, ...safeUser } = demoMatch
-      setDemoSession({ ...safeUser, id: `demo-${safeUser.email}` })
+      setDemoSession({ ...safeUser, id: `demo-${safeUser.email}`, authUserId: `demo-${safeUser.email}` })
       return { ok: true }
     }
 

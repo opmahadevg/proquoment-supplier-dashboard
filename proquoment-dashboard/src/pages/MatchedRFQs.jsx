@@ -4,6 +4,7 @@ import { useSettings, formatAmount } from '../context/SettingsContext'
 import { useDashboard } from '../context/DashboardContext'
 import { useAuth } from '../context/AuthContext'
 import { submitQuotation } from '../lib/procurementApi'
+import { submitBid } from '../lib/supplierApi'
 
 
 const INITIAL_RFQS = [
@@ -163,7 +164,7 @@ function MatchBadge({ score }) {
 }
 export default function MatchedRFQs() {
   const { rfqList, setRfqList, updateStatus, addToast } = useDashboard()
-  const { user } = useAuth()
+  const { user, isDemo } = useAuth()
   const [savedIds, setSavedIds] = useState(new Set(['RFQ-2024-003']))
   const [placedBids, setPlacedBids] = useState({}) // id → bid data
   const [selectedId, setSelectedId] = useState(null)
@@ -375,6 +376,7 @@ export default function MatchedRFQs() {
             onBidPlaced={(data) => handleBidPlaced(selectedRFQ.id, data)}
             onToast={addToast}
             user={user}
+            isDemo={isDemo}
             navigate={navigate}
           />
         </div>
@@ -519,7 +521,7 @@ function RFQCard({ rfq, isSelected, isSaved, bid, onSelect, onToggleSave, onDecl
   )
 }
 
-function BidDrawer({ rfq, isSaved, bid, onClose, onToggleSave, onDecline, onMarkReviewed, onBidPlaced, onToast, user, navigate }) {
+function BidDrawer({ rfq, isSaved, bid, onClose, onToggleSave, onDecline, onMarkReviewed, onBidPlaced, onToast, user, isDemo, navigate }) {
   const [tab, setTab] = useState(rfq.status === 'bid_placed' ? 'details' : 'bid')
 
   // ── Phase 2: Full quotation fields ──
@@ -556,19 +558,39 @@ function BidDrawer({ rfq, isSaved, bid, onClose, onToggleSave, onDecline, onMark
     setSubmitting(true)
     setSubmitError('')
     try {
-      const quoteId = await submitQuotation({
-        rfqId:        rfq.id,
-        unitPrice:    Number(unitPrice),
-        moq:          Number(moq),
-        leadTimeDays: Number(leadTimeDays),
-        paymentTerms,
-        notes:        note,
-        validUntil:   validUntil || undefined,
-        supplierId:   user?.id,
-        supplierName: user?.company || user?.name,
-        supplierEmail: user?.email,
-        quoteType,
-      })
+      let quoteId
+      if (isDemo) {
+        quoteId = await submitQuotation({
+          rfqId:        rfq.id,
+          unitPrice:    Number(unitPrice),
+          moq:          Number(moq),
+          leadTimeDays: Number(leadTimeDays),
+          paymentTerms,
+          notes:        note,
+          validUntil:   validUntil || undefined,
+          supplierId:   user?.id,
+          supplierName: user?.company || user?.name,
+          supplierEmail: user?.email,
+          quoteType,
+        })
+      } else {
+        const quoteObj = await submitBid(
+          rfq.id,
+          user?.authUserId,
+          user?.supplierId,
+          user?.company || user?.name || 'Supplier',
+          {
+            qty: Number(moq),
+            unitPrice: Number(unitPrice),
+            moq: Number(moq),
+            leadTime: Number(leadTimeDays),
+            paymentTerms,
+            notes: note
+          },
+          false
+        )
+        quoteId = quoteObj?.id
+      }
       setSubmitted(true)
       onBidPlaced({
         quoteId,
@@ -583,7 +605,7 @@ function BidDrawer({ rfq, isSaved, bid, onClose, onToggleSave, onDecline, onMark
       })
       onToast?.(`Quote submitted for ${rfq.title}`, 'success')
     } catch (err) {
-      console.error('submitQuotation failed:', err)
+      console.error('submitQuotation/submitBid failed:', err)
       setSubmitError(err.message || 'Submission failed — check connection and retry')
       onToast?.('Quote submission failed', 'error')
     } finally {

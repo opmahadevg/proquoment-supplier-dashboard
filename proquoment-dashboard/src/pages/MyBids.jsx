@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../context/DashboardContext'
+import { useAuth } from '../context/AuthContext'
 import { getQuotesForRFQ } from '../lib/procurementApi'
 
 
@@ -77,11 +78,13 @@ export default function MyBids() {
   const [activeTab, setActiveTab]     = useState('All')
   const [selectedBid, setSelectedBid] = useState(null)
   const [submittedQuotes, setSubmittedQuotes] = useState([]) // Phase 2: quotes from DB
-  const { bids } = useDashboard()
+  const { bids, rfqList } = useDashboard()
+  const { isDemo } = useAuth()
   const navigate  = useNavigate()
 
   // Fetch recently submitted quotes on mount
   useEffect(() => {
+    if (!isDemo) return
     const rfqIds = [...new Set(STATIC_BIDS.map(b => b.rfqId))]
     Promise.allSettled(rfqIds.map(id => getQuotesForRFQ(id))).then(results => {
       const allQuotes = results
@@ -89,34 +92,75 @@ export default function MyBids() {
         .flatMap(r => r.value)
       if (allQuotes.length) setSubmittedQuotes(allQuotes)
     })
-  }, [])
+  }, [isDemo])
 
   // Merge DB bids with any live-submitted quotes (quotes take precedence for same rfqId)
   const quotedRfqIds = new Set(submittedQuotes.map(q => q.rfqId))
-  const mergedBids = [
-    ...submittedQuotes.map(q => ({
-      id:           q.id,
-      rfqId:        q.rfqId,
-      title:        q.rfqId,   // will be enriched below if title known
-      buyer:        q.supplierName || '—',
-      buyerLogo:    '??',
-      submitted:    q.createdAt ? new Date(q.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—',
-      expires:      q.validUntil || '—',
-      myBid:        `$${Number(q.totalValue || q.unitPrice * q.moq).toLocaleString(undefined,{minimumFractionDigits:2})}`,
-      status:       'Pending',
-      statusColor:  'bg-[#ffdad6] text-[#ba1a1a]',
-      quantity:     `${(q.moq || 0).toLocaleString()} pcs`,
-      deliveryDays: q.leadTimeDays,
-      rank: null, totalBids: null,
-      // Phase 2 extra fields
-      unitPrice:    q.unitPrice,
-      moq:          q.moq,
-      leadTimeDays: q.leadTimeDays,
-      paymentTerms: q.paymentTerms,
-      isQuote:      true,
-    })),
-    ...bids.filter(b => !quotedRfqIds.has(b.rfqId)),
-  ]
+  const mergedBids = isDemo
+    ? [
+        ...submittedQuotes.map(q => ({
+          id:           q.id,
+          rfqId:        q.rfqId,
+          title:        q.rfqId,   // will be enriched below if title known
+          buyer:        q.supplierName || '—',
+          buyerLogo:    '??',
+          submitted:    q.createdAt ? new Date(q.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—',
+          expires:      q.validUntil || '—',
+          myBid:        `$${Number(q.totalValue || q.unitPrice * q.moq).toLocaleString(undefined,{minimumFractionDigits:2})}`,
+          status:       'Pending',
+          statusColor:  'bg-[#ffdad6] text-[#ba1a1a]',
+          quantity:     `${(q.moq || 0).toLocaleString()} pcs`,
+          deliveryDays: q.leadTimeDays,
+          rank: null, totalBids: null,
+          // Phase 2 extra fields
+          unitPrice:    q.unitPrice,
+          moq:          q.moq,
+          leadTimeDays: q.leadTimeDays,
+          paymentTerms: q.paymentTerms,
+          isQuote:      true,
+        })),
+        ...bids.filter(b => !quotedRfqIds.has(b.rfqId)),
+      ]
+    : bids.map(q => {
+        const matchingRFQ = rfqList.find(r => r.id === q.rfq_id)
+        const displayTitle = matchingRFQ ? matchingRFQ.title : `RFQ (${q.rfq_id})`
+        const displayQty = matchingRFQ ? matchingRFQ.quantity : `${q.moq} units`
+        
+        let displayStatus = 'Pending'
+        let color = 'bg-[#ffdad6] text-[#ba1a1a]'
+        if (q.status === 'won' || q.status === 'accepted') {
+          displayStatus = 'Won'
+          color = 'bg-[#e8f5e9] text-[#2e7d32]'
+        } else if (q.status === 'lost' || q.status === 'rejected') {
+          displayStatus = 'Lost'
+          color = 'bg-[#e8e8e8] text-[#9e9e9e]'
+        } else if (q.status === 'under_review') {
+          displayStatus = 'Under Review'
+          color = 'bg-[#e1e0ff] text-[#0f00da]'
+        }
+
+        return {
+          id:           q.id,
+          rfqId:        q.rfq_id,
+          title:        displayTitle,
+          buyer:        'Proquoment Admin',
+          buyerLogo:    'PA',
+          submitted:    q.created_at ? new Date(q.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—',
+          expires:      q.valid_until ? new Date(q.valid_until).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—',
+          myBid:        `$${Number(q.total_value || q.unit_price * q.moq).toLocaleString(undefined,{minimumFractionDigits:2})}`,
+          status:       displayStatus,
+          statusColor:  color,
+          quantity:     displayQty,
+          deliveryDays: q.lead_time_days || 30,
+          rank: 1, 
+          totalBids: 1,
+          unitPrice:    q.unit_price,
+          moq:          q.moq,
+          leadTimeDays: q.lead_time_days,
+          paymentTerms: q.payment_terms,
+          isQuote:      true,
+        }
+      })
 
   const filteredBids = mergedBids.filter(b => {
     if (activeTab === 'All')    return true

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Outlet, useLocation, NavLink, useNavigate } from 'react-router-dom'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import Sidebar from './Sidebar'
 import PageTransition from './PageTransition'
 import ErrorBoundary from './ErrorBoundary'
 import { useAuth } from '../context/AuthContext'
+import { useDashboard } from '../context/DashboardContext'
+import * as supplierApi from '../lib/supplierApi'
 import logo from '@assets/logo.png'
 
 const allNavItems = [
@@ -40,7 +42,7 @@ function getInitials(name) {
   return (name || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
 }
 
-function MobileHeader({ onHamburger }) {
+function MobileHeader({ onHamburger, onBellClick, unreadCount }) {
   const location = useLocation()
   const title = PAGE_TITLES[location.pathname] || 'Proquoment'
 
@@ -55,6 +57,17 @@ function MobileHeader({ onHamburger }) {
       </button>
       <img src={logo} alt="Proquoment" className="w-6 h-6 rounded-md object-cover flex-shrink-0" />
       <span className="text-[15px] font-semibold text-[#111111] truncate flex-1">{title}</span>
+      <button
+        onClick={onBellClick}
+        className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#f5f5f5] transition-colors flex-shrink-0 relative"
+      >
+        <span className="material-symbols-outlined text-[22px] text-[#555555]">notifications</span>
+        {unreadCount > 0 && (
+          <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-[#ba1a1a] text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+            {unreadCount}
+          </span>
+        )}
+      </button>
     </header>
   )
 }
@@ -189,24 +202,132 @@ function MobileDrawer({ open, onClose }) {
 
 export default function Layout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [bellOpen, setBellOpen] = useState(false)
   const isMessages = location.pathname === '/messages'
 
-  // Close drawer on route change
+  const { alertsList, refreshData } = useDashboard()
+  const unreadCount = alertsList.length
+
+  // Close drawer/bell on route change
   useEffect(() => {
     setDrawerOpen(false)
+    setBellOpen(false)
   }, [location.pathname])
 
   return (
-    <div className="flex min-h-screen bg-white overflow-hidden">
+    <div className="flex min-h-screen bg-white overflow-hidden relative">
       {/* Desktop Sidebar */}
       <Sidebar />
 
       {/* Mobile Header */}
-      <MobileHeader onHamburger={() => setDrawerOpen(true)} />
+      <MobileHeader
+        onHamburger={() => setDrawerOpen(true)}
+        onBellClick={() => setBellOpen(prev => !prev)}
+        unreadCount={unreadCount}
+      />
 
       {/* Mobile Drawer */}
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
+      {/* Desktop Bell Icon Overlay */}
+      <div className="hidden md:block fixed top-4 right-6 z-50">
+        <button
+          onClick={() => setBellOpen(prev => !prev)}
+          className="w-10 h-10 bg-white border border-[#ebebeb] shadow-sm flex items-center justify-center rounded-full hover:border-[#0f00da] hover:shadow transition-all relative group"
+        >
+          <span className="material-symbols-outlined text-[20px] text-[#555555] group-hover:text-[#0f00da]">notifications</span>
+          {unreadCount > 0 && (
+            <span className="absolute top-0 right-0 w-4 h-4 bg-[#ba1a1a] text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+              {unreadCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Notification Dropdown Panel */}
+      <AnimatePresence>
+        {bellOpen && (
+          <>
+            {/* Transparent click-to-close backdrop */}
+            <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setBellOpen(false)} />
+            
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              className="fixed right-4 top-16 md:right-6 md:top-16 z-50 w-80 md:w-96 bg-white border border-[#ebebeb] rounded-2xl shadow-xl overflow-hidden max-h-[480px] flex flex-col"
+            >
+              <div className="px-5 py-4 border-b border-[#f5f5f5] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm text-[#111111]">Notifications</span>
+                  {unreadCount > 0 && (
+                    <span className="bg-[#ffdad6] text-[#ba1a1a] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {unreadCount} new
+                    </span>
+                  )}
+                </div>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await Promise.all(alertsList.map(a => supplierApi.markNotificationRead(a.id)))
+                        refreshData()
+                      } catch (err) {
+                        console.error('Failed to mark all as read:', err)
+                      }
+                    }}
+                    className="text-xs text-[#0f00da] font-medium hover:underline"
+                  >
+                    Mark all as read
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex-1 overflow-y-auto divide-y divide-[#f5f5f5] no-scrollbar">
+                {alertsList.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <span className="material-symbols-outlined text-[32px] text-gray-300 mb-2">notifications_off</span>
+                    <p className="text-xs">No unread notifications</p>
+                  </div>
+                ) : (
+                  alertsList.map((alert) => (
+                    <div
+                      key={alert.id}
+                      onClick={async () => {
+                        try {
+                          await supplierApi.markNotificationRead(alert.id)
+                          refreshData()
+                          setBellOpen(false)
+                          if (alert.path) {
+                            navigate(alert.path)
+                          }
+                        } catch (err) {
+                          console.error('Failed to mark read:', err)
+                        }
+                      }}
+                      className="p-4 hover:bg-[#fafafa] transition-colors cursor-pointer flex items-start gap-3"
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${alert.color}`}>
+                        <span className="material-symbols-outlined text-[16px]">{alert.icon}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-[#111111] truncate">{alert.title}</p>
+                          <span className="text-[10px] text-gray-400 whitespace-nowrap">{alert.time}</span>
+                        </div>
+                        <p className="text-xs text-[#6b6b6b] mt-0.5 line-clamp-2 leading-relaxed">{alert.desc}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <main

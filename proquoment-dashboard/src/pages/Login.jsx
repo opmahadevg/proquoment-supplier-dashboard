@@ -325,12 +325,10 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="text-sm text-center text-[#9e9e9e] mt-5">
-            New {accountType.toLowerCase()}?{' '}
-            <a href="https://form.proquoment.in" className="text-[#0f00da] font-semibold hover:underline">
-              Create an account
-            </a>
-          </p>
+          <div className="mt-5 p-3 rounded-xl bg-[#f8f9fa] border border-[#ebebeb] text-center text-xs text-[#555555] flex items-center justify-center gap-1.5">
+            <span className="material-symbols-outlined text-[16px] text-[#0f00da]">info</span>
+            <span>Account created by Proquoment admin. Contact support if you need credentials.</span>
+          </div>
 
           {/* Demo accounts */}
           <div className="mt-7 border border-[#ebebeb] rounded-2xl overflow-hidden">
