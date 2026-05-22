@@ -32,6 +32,8 @@ export async function submitQuotation({
   validUntil,
   supplierId,
   supplierName,
+  supplierEmail,
+  quoteType,
 }) {
   // Validate required numeric fields
   const parsedUnitPrice = parseFloat(unitPrice)
@@ -44,10 +46,42 @@ export async function submitQuotation({
 
   const id = `SQOT-${Date.now().toString(36).toUpperCase()}`
 
+  // Resolve supplier ID to bigint
+  let dbSupplierId = null
+  const emailToLookup = supplierEmail || (typeof supplierId === 'string' && supplierId.includes('@') ? supplierId.replace('demo-', '') : null)
+  
+  if (emailToLookup) {
+    const { data: sData, error: sErr } = await supabase
+      .from('suppliers')
+      .select('id')
+      .eq('email', emailToLookup)
+      .maybeSingle()
+    if (!sErr && sData) {
+      dbSupplierId = sData.id
+    }
+  }
+
+  if (!dbSupplierId && supplierId) {
+    const parsedId = parseInt(supplierId, 10)
+    if (!isNaN(parsedId)) {
+      dbSupplierId = parsedId
+    }
+  }
+
+  if (!dbSupplierId && emailToLookup) {
+    const demoEmailMap = {
+      'ahmad@supplier.com': 18,
+      'priya@valvetech.in': 19,
+      'li.wei@precisionmfg.com': 20,
+      'raj@hydrocast.in': 21
+    }
+    dbSupplierId = demoEmailMap[emailToLookup] || null
+  }
+
   const quoteRow = {
     id,
     rfq_id:         rfqId,
-    supplier_id:    supplierId   || null,
+    supplier_id:    dbSupplierId,
     supplier_name:  supplierName || null,
     unit_price:     parsedUnitPrice,
     moq:            parsedMoq,
@@ -60,6 +94,7 @@ export async function submitQuotation({
       ? Math.ceil((new Date(validUntil) - new Date()) / 86_400_000)
       : 14,
     status: 'pending',
+    quote_type:     quoteType || 'bulk',
   }
 
   const { error: insertError } = await supabase.from('quotes').insert(quoteRow)
@@ -152,10 +187,29 @@ export async function updateMilestone({ orderId, title, description, status }) {
 // ── Fetch Assigned RFQs (from Admin) ──────────────────
 
 export async function fetchAssignedRFQs(supplierName) {
-  const { data, error } = await supabase.from('rfqs').select('*')
-    .eq('assigned_supplier', supplierName)
+  // First, fetch assignments from rfq_assignments matching supplierName
+  const { data: assignments, error: assErr } = await supabase
+    .from('rfq_assignments')
+    .select('rfq_id')
+    .eq('supplier_name', supplierName);
+  if (assErr) { console.error('fetchAssignedRFQs assignments:', assErr); return [] }
+
+  const assignedRfqIds = (assignments || []).map(a => a.rfq_id);
+
+  // also fallback check assigned_supplier for backwards compatibility
+  let query = supabase.from('rfqs').select('*');
+  
+  if (assignedRfqIds.length > 0) {
+    // Construct the OR filter properly
+    query = query.or(`id.in.(${assignedRfqIds.map(id => `"${id}"`).join(',')}),assigned_supplier.eq."${supplierName}"`);
+  } else {
+    query = query.eq('assigned_supplier', supplierName);
+  }
+
+  const { data, error } = await query
     .in('status', ['assigned', 'bid_placed', 'quoted'])
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false });
+
   if (error) { console.error('fetchAssignedRFQs:', error); return [] }
   return (data || []).map(r => ({
     id: r.id, product: r.product, buyer: r.buyer, qty: r.qty,

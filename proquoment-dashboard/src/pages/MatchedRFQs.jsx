@@ -529,6 +529,7 @@ function BidDrawer({ rfq, isSaved, bid, onClose, onToggleSave, onDecline, onMark
   const [paymentTerms, setPaymentTerms] = useState(bid?.paymentTerms || 'Net 30')
   const [note, setNote]                 = useState(bid?.note || '')
   const [validUntil, setValidUntil]     = useState('')
+  const [quoteType, setQuoteType]       = useState('bulk')
 
   const [errors, setErrors]     = useState({})
   const [submitting, setSubmitting] = useState(false)
@@ -565,6 +566,8 @@ function BidDrawer({ rfq, isSaved, bid, onClose, onToggleSave, onDecline, onMark
         validUntil:   validUntil || undefined,
         supplierId:   user?.id,
         supplierName: user?.company || user?.name,
+        supplierEmail: user?.email,
+        quoteType,
       })
       setSubmitted(true)
       onBidPlaced({
@@ -694,6 +697,7 @@ function BidDrawer({ rfq, isSaved, bid, onClose, onToggleSave, onDecline, onMark
             paymentTerms={paymentTerms}     setPaymentTerms={setPaymentTerms}
             note={note}                     setNote={setNote}
             validUntil={validUntil}         setValidUntil={setValidUntil}
+            quoteType={quoteType}           setQuoteType={setQuoteType}
             errors={errors}                 setErrors={setErrors}
             submitting={submitting}
             submitError={submitError}
@@ -818,7 +822,7 @@ function DetailsPanel({ rfq, onMarkReviewed, onDecline, onSwitchToBid, alreadyBi
   )
 }
 
-function BidPanel({ rfq, unitPrice, setUnitPrice, moq, setMoq, leadTimeDays, setLeadTimeDays, paymentTerms, setPaymentTerms, note, setNote, validUntil, setValidUntil, errors, setErrors, submitting, submitError, alreadyBid, bid, onSubmit, navigate }) {
+function BidPanel({ rfq, unitPrice, setUnitPrice, moq, setMoq, leadTimeDays, setLeadTimeDays, paymentTerms, setPaymentTerms, note, setNote, validUntil, setValidUntil, quoteType, setQuoteType, errors, setErrors, submitting, submitError, alreadyBid, bid, onSubmit, navigate }) {
   const totalValue   = (unitPrice && moq && !isNaN(unitPrice) && !isNaN(moq))
     ? (Number(unitPrice) * Number(moq)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : '—'
@@ -856,6 +860,36 @@ function BidPanel({ rfq, unitPrice, setUnitPrice, moq, setMoq, leadTimeDays, set
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
+
+      {/* ── Bid Type ── */}
+      <div>
+        <label className="text-xs font-medium text-[#555555] block mb-1.5">Bid Type</label>
+        <div className="flex gap-2">
+          {[
+            { key: 'bulk', label: 'Bulk Production Bid', icon: 'inventory_2' },
+            { key: 'sample', label: 'Sample Bid', icon: 'deployed_code' },
+          ].map(type => (
+            <button
+              key={type.key}
+              type="button"
+              onClick={() => {
+                setQuoteType(type.key);
+                if (type.key === 'sample' && (!moq || Number(moq) > 5)) {
+                  setMoq('1');
+                }
+              }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium border transition-colors ${
+                quoteType === type.key
+                  ? 'bg-[#0f00da] text-white border-[#0f00da]'
+                  : 'border-[#ebebeb] text-[#555555] hover:border-[#0f00da] hover:text-[#0f00da]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">{type.icon}</span>
+              {type.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* ── Reference bar ── */}
       <div className="bg-white border border-[#ebebeb] rounded-xl px-4 py-3 flex items-center justify-between">
