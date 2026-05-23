@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import logo from '@assets/logo.png'
+import loginBg from '@assets/login-bg.jpg'
 
 const ROLE_CONFIG = {
   Supplier: {
@@ -148,12 +149,12 @@ export default function Login() {
       transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
     >
       {/* ── Left panel ── */}
-      <div className="hidden md:flex w-[44%] bg-[#0f00da] flex-col relative overflow-hidden p-10 text-white">
-        {/* Decorative circles */}
-        <div className="absolute top-[-100px] right-[-100px] w-[380px] h-[380px] rounded-full bg-white/10 pointer-events-none" />
-        <div className="absolute top-[140px] right-[30px] w-[160px] h-[160px] rounded-full bg-white/10 pointer-events-none" />
-        <div className="absolute bottom-[120px] left-[-70px] w-[280px] h-[280px] rounded-full bg-white/10 pointer-events-none" />
-        <div className="absolute bottom-[-80px] right-[-40px] w-[220px] h-[220px] rounded-full bg-white/10 pointer-events-none" />
+      <div
+        className="hidden md:flex w-[44%] flex-col relative overflow-hidden p-10 text-white bg-cover bg-center"
+        style={{ backgroundImage: `url(${loginBg})` }}
+      >
+        {/* Dark overlay for contrast and text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/75 z-0" />
 
         {/* Logo */}
         <div className="flex items-center gap-2.5 relative z-10">
