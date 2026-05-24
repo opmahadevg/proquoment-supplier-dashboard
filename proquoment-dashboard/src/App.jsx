@@ -11,6 +11,7 @@ import Analytics from './pages/Analytics'
 import ProductCatalogue from './pages/ProductCatalogue'
 import SampleOrders from './pages/SampleOrders'
 import BulkOrders from './pages/BulkOrders'
+import QCInspections from './pages/QCInspections'
 import CompanyProfile from './pages/CompanyProfile'
 import Settings from './pages/Settings'
 import QuoteSubmissionChat from './pages/QuoteSubmissionChat'
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="product-catalogue" element={<ProductCatalogue />} />
         <Route path="sample-orders" element={<SampleOrders />} />
         <Route path="bulk-orders" element={<BulkOrders />} />
+        <Route path="qc-inspections" element={<QCInspections />} />
         <Route path="company-profile" element={<CompanyProfile />} />
         <Route path="settings" element={<Settings />} />
       </Route>

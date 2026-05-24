@@ -13,6 +13,7 @@ const navItems = [
   { path: '/product-catalogue', icon: 'inventory_2', label: 'My Products' },
   { path: '/sample-orders', icon: 'science', label: 'Sample Orders' },
   { path: '/bulk-orders', icon: 'local_shipping', label: 'Bulk Orders' },
+  { path: '/qc-inspections', icon: 'fact_check', label: 'QC Inspections' },
 ]
 
 const bottomItems = [
