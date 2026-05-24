@@ -22,7 +22,7 @@ const conversations = [
 ]
 
 export default function Messages() {
-  const { user, isDemo } = useAuth()
+  const { user } = useAuth()
   const defaultAdminConv = {
     id: 'new-conv',
     name: 'Proquoment Admin',
@@ -34,20 +34,16 @@ export default function Messages() {
     messages: []
   }
 
-  const [convList, setConvList] = useState(isDemo ? conversations : [defaultAdminConv])
-  const [activeConv, setActiveConv] = useState(isDemo ? conversations[0] : defaultAdminConv)
+  const [convList, setConvList] = useState([defaultAdminConv])
+  const [activeConv, setActiveConv] = useState(defaultAdminConv)
   const [input, setInput] = useState('')
-  const [messages, setMessages] = useState(isDemo ? conversations[0].messages : [])
+  const [messages, setMessages] = useState([])
   const [search, setSearch] = useState('')
   const [mobileView, setMobileView] = useState('list')
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
-    if (isDemo) {
-      setConvList(conversations)
-      setActiveConv(conversations[0])
-      setMessages(conversations[0].messages)
-    } else if (user?.authUserId) {
+    if (user?.authUserId) {
       supplierApi.getConversations(user.authUserId, false).then(data => {
         if (data && data.length) {
           setConvList(data)
@@ -60,7 +56,7 @@ export default function Messages() {
         }
       })
     }
-  }, [isDemo, user])
+  }, [user])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -68,7 +64,7 @@ export default function Messages() {
 
   // Real-time messages subscriber
   useEffect(() => {
-    if (isDemo || !user?.authUserId) return
+    if (!user?.authUserId) return
 
     const channel = supabase.channel('supplier-messages-realtime')
     channel.on(
@@ -90,7 +86,7 @@ export default function Messages() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [isDemo, user, activeConv])
+  }, [user, activeConv])
 
   const handleSelect = (conv) => {
     setActiveConv(conv)
@@ -106,33 +102,23 @@ export default function Messages() {
     const optimistic = { id: Date.now(), from: 'me', text, time: 'Just now' }
     setMessages(prev => [...prev, optimistic])
 
-    if (isDemo) {
-      // Simulate Admin reply
-      setTimeout(() => {
-        const replyText = "Hello! I am reviewing your request. Our support team is online 24/7 to help you with bidding and quality inspections."
-        const adminReply = { id: Date.now() + 1, from: 'them', text: replyText, time: 'Just now' }
-        setMessages(prev => [...prev, adminReply])
-        setConvList(prev => prev.map(c => c.id === activeConv.id ? { ...c, lastMessage: replyText, time: 'Just now' } : c))
-      }, 1500)
-    } else {
-      try {
-        await supplierApi.sendMessageToAdmin(
-          user?.authUserId,
-          user?.supplierId,
-          user?.company || user?.name || 'Supplier',
-          text,
-          false
-        )
-        const updatedConvs = await supplierApi.getConversations(user?.authUserId, false)
-        if (updatedConvs && updatedConvs.length) {
-          setConvList(updatedConvs)
-          const newActive = updatedConvs.find(c => c.messages.some(m => m.text === text)) || updatedConvs[0]
-          setActiveConv(newActive)
-          setMessages(newActive.messages)
-        }
-      } catch (err) {
-        console.error('Failed to send message to admin:', err)
+    try {
+      await supplierApi.sendMessageToAdmin(
+        user?.authUserId,
+        user?.supplierId,
+        user?.company || user?.name || 'Supplier',
+        text,
+        false
+      )
+      const updatedConvs = await supplierApi.getConversations(user?.authUserId, false)
+      if (updatedConvs && updatedConvs.length) {
+        setConvList(updatedConvs)
+        const newActive = updatedConvs.find(c => c.messages.some(m => m.text === text)) || updatedConvs[0]
+        setActiveConv(newActive)
+        setMessages(newActive.messages)
       }
+    } catch (err) {
+      console.error('Failed to send message to admin:', err)
     }
   }
 

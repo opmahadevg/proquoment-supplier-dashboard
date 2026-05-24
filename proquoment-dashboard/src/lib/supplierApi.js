@@ -159,11 +159,6 @@ export async function markNotificationRead(notifId) {
 }
 
 export async function getConversations(authUserId, isDemo = false) {
-  if (isDemo) {
-    // Return empty list or fallback conversations for demo
-    return []
-  }
-
   if (!authUserId) return []
 
   // 1. Fetch conversations for this supplier
@@ -186,7 +181,13 @@ export async function getConversations(authUserId, isDemo = false) {
 
   if (msgErr) throw msgErr
 
-  return convs.map(c => {
+  // Filter conversations: only show conversations where admin (from_me: true) has replied
+  const repliedConvs = convs.filter(c => {
+    const cMsgs = (msgs || []).filter(m => m.conversation_id === c.id)
+    return cMsgs.some(m => m.from_me === true)
+  })
+
+  return repliedConvs.map(c => {
     const cMsgs = (msgs || []).filter(m => m.conversation_id === c.id)
     return {
       id: c.id,
@@ -207,7 +208,6 @@ export async function getConversations(authUserId, isDemo = false) {
 }
 
 export async function sendMessageToAdmin(authUserId, supplierId, supplierName, text, isDemo = false) {
-  if (isDemo) return null
   if (!authUserId) return null
 
   // 1. Look up existing conversation
