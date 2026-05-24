@@ -6,63 +6,19 @@ import * as supplierApi from '../lib/supplierApi'
 
 const conversations = [
   {
-    id: 1,
-    name: 'Sunrise Manufacturing LLC',
-    avatar: 'SM',
-    lastMessage: 'Can you provide a revised quote with faster delivery?',
+    id: 'admin-conv',
+    name: 'Proquoment Admin',
+    avatar: 'A',
+    lastMessage: 'Hello! Let me know if you have any questions or need support.',
     time: '10:32 AM',
-    unread: 2,
-    online: true,
-    messages: [
-      { id: 1, from: 'them', text: 'Hello, we reviewed your bid for Steel Pipes RFQ-2024-001.', time: '9:00 AM' },
-      { id: 2, from: 'me', text: 'Thank you for considering our bid. How can I help?', time: '9:05 AM' },
-      { id: 3, from: 'them', text: "We're interested but the delivery time is a bit long. Can you do 14 days instead of 21?", time: '9:10 AM' },
-      { id: 4, from: 'me', text: 'Let me check with our logistics team. We might be able to expedite if we source locally.', time: '9:15 AM' },
-      { id: 5, from: 'them', text: 'That would be great. Also, what certifications do you hold for Grade A steel?', time: '10:20 AM' },
-      { id: 6, from: 'them', text: 'Can you provide a revised quote with faster delivery?', time: '10:32 AM' },
-    ]
-  },
-  {
-    id: 2,
-    name: 'Gulf Construction Co.',
-    avatar: 'GC',
-    lastMessage: 'Please send the product data sheet for DN50 valves.',
-    time: 'Yesterday',
-    unread: 0,
-    online: false,
-    messages: [
-      { id: 1, from: 'them', text: 'We received your bid for Industrial Valves.', time: 'Yesterday 2:00 PM' },
-      { id: 2, from: 'me', text: 'Great! Do you have any specific requirements?', time: 'Yesterday 2:15 PM' },
-      { id: 3, from: 'them', text: 'Please send the product data sheet for DN50 valves.', time: 'Yesterday 3:30 PM' },
-    ]
-  },
-  {
-    id: 3,
-    name: 'Al Futtaim Industries',
-    avatar: 'AF',
-    lastMessage: "Your bid looks competitive. We'll review by Friday.",
-    time: 'Mon',
     unread: 0,
     online: true,
     messages: [
-      { id: 1, from: 'them', text: 'We have reviewed your bid for hydraulic fittings.', time: 'Mon 10:00 AM' },
-      { id: 2, from: 'me', text: 'We can guarantee quality and timely delivery.', time: 'Mon 10:30 AM' },
-      { id: 3, from: 'them', text: "Your bid looks competitive. We'll review by Friday.", time: 'Mon 11:00 AM' },
+      { id: 1, from: 'them', text: 'Welcome to Proquoment. How can I assist you with your setup or bids today?', time: '10:00 AM' },
+      { id: 2, from: 'me', text: 'Hi! I have listed my product catalogue and submitted a few bids. All looks good.', time: '10:15 AM' },
+      { id: 3, from: 'them', text: 'Excellent. We will review your bids and match you with more RFQs shortly.', time: '10:20 AM' },
     ]
-  },
-  {
-    id: 4,
-    name: 'Emirates Steel Corp',
-    avatar: 'ES',
-    lastMessage: 'Can we schedule a call to discuss the order?',
-    time: 'Nov 20',
-    unread: 1,
-    online: false,
-    messages: [
-      { id: 1, from: 'them', text: 'We want to discuss the flanges order further.', time: 'Nov 20 9:00 AM' },
-      { id: 2, from: 'them', text: 'Can we schedule a call to discuss the order?', time: 'Nov 20 9:05 AM' },
-    ]
-  },
+  }
 ]
 
 export default function Messages() {
@@ -88,13 +44,9 @@ export default function Messages() {
 
   useEffect(() => {
     if (isDemo) {
-      getConversations().then(data => {
-        if (data && data.length) {
-          setConvList(data)
-          setActiveConv(data[0])
-          setMessages(data[0].messages)
-        }
-      })
+      setConvList(conversations)
+      setActiveConv(conversations[0])
+      setMessages(conversations[0].messages)
     } else if (user?.authUserId) {
       supplierApi.getConversations(user.authUserId, false).then(data => {
         if (data && data.length) {
@@ -155,10 +107,13 @@ export default function Messages() {
     setMessages(prev => [...prev, optimistic])
 
     if (isDemo) {
-      const saved = await dbSendMessage(activeConv.id, text)
-      if (saved) {
-        setMessages(prev => prev.map(m => m.id === optimistic.id ? saved : m))
-      }
+      // Simulate Admin reply
+      setTimeout(() => {
+        const replyText = "Hello! I am reviewing your request. Our support team is online 24/7 to help you with bidding and quality inspections."
+        const adminReply = { id: Date.now() + 1, from: 'them', text: replyText, time: 'Just now' }
+        setMessages(prev => [...prev, adminReply])
+        setConvList(prev => prev.map(c => c.id === activeConv.id ? { ...c, lastMessage: replyText, time: 'Just now' } : c))
+      }, 1500)
     } else {
       try {
         await supplierApi.sendMessageToAdmin(

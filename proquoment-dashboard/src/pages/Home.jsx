@@ -8,7 +8,7 @@ import { useDashboard } from '../context/DashboardContext'
 const STATIC_ALERTS = [
   { id: 1, type: 'rfq', icon: 'request_quote', color: 'bg-[#e1e0ff] text-[#0f00da]', title: 'New RFQ Match', desc: '3 new RFQs match your product catalogue', time: '2 min ago', action: 'View RFQs', path: '/matched-rfqs' },
   { id: 2, type: 'bid', icon: 'gavel', color: 'bg-[#ffdad6] text-[#ba1a1a]', title: 'Bid Expiring Soon', desc: 'Your bid on "Industrial Valves" expires in 2 hours', time: '1 hour ago', action: 'View Bid', path: '/my-bids' },
-  { id: 3, type: 'message', icon: 'chat', color: 'bg-[#e1e0ff] text-[#0f00da]', title: 'New Message', desc: 'Buyer #037092c1 sent you a message', time: '3 hours ago', action: 'Reply', path: '/messages' },
+  { id: 3, type: 'message', icon: 'chat', color: 'bg-[#e1e0ff] text-[#0f00da]', title: 'New Message', desc: 'Proquoment Admin sent you a message', time: '3 hours ago', action: 'Reply', path: '/messages' },
 ]
 
 const recentActivity = [

@@ -275,7 +275,7 @@ export default function BulkOrders() {
                     <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">local_shipping</span> Target: {order.delivery}</span>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => navigate('/messages')} className="border border-[#ebebeb] text-[#555555] px-4 py-2 rounded-full text-xs font-semibold hover:border-[#0f00da] hover:text-[#0f00da] transition-all bg-white">Message Buyer</button>
+                    <button onClick={() => navigate('/messages')} className="border border-[#ebebeb] text-[#555555] px-4 py-2 rounded-full text-xs font-semibold hover:border-[#0f00da] hover:text-[#0f00da] transition-all bg-white">Message Admin</button>
                     <button onClick={() => {
                       setSelectedOrder(order)
                       setShowAddForm(false)
@@ -450,7 +450,7 @@ export default function BulkOrders() {
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button onClick={() => navigate('/messages')} className="flex-1 border border-[#0f00da] text-[#0f00da] py-2.5 rounded-full text-sm font-semibold hover:bg-blue-50/50 transition-all text-center">Message Buyer</button>
+                <button onClick={() => navigate('/messages')} className="flex-1 border border-[#0f00da] text-[#0f00da] py-2.5 rounded-full text-sm font-semibold hover:bg-blue-50/50 transition-all text-center">Message Admin</button>
                 <button onClick={() => {
                   confirmQCReady(selectedOrder.id, 'Production complete — Goods ready for inspections')
                     .then(() => alert(`QC Ready notification dispatched to Admin for order ${selectedOrder.id}`))
