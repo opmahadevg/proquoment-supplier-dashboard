@@ -211,11 +211,14 @@ export async function fetchAssignedRFQs(supplierName) {
     .order('created_at', { ascending: false });
 
   if (error) { console.error('fetchAssignedRFQs:', error); return [] }
-  return (data || []).map(r => ({
-    id: r.id, product: r.product, buyer: r.buyer, qty: r.qty,
-    value: r.value, status: r.status, date: r.date,
-    targetPrice: r.target_price, specs: r.specs, deadline: r.deadline,
-  }))
+  return (data || []).map(r => {
+    const buyerId = r.buyer_id ? `Buyer #${r.buyer_id.substring(0, 8)}` : (r.buyer ? `Buyer #${r.buyer.split(' ').map(w => w[0]).join('').toUpperCase()}-${r.id.slice(-4)}` : 'Verified Buyer')
+    return {
+      id: r.id, product: r.product, buyer: buyerId, qty: r.qty,
+      value: r.value, status: r.status, date: r.date,
+      targetPrice: r.target_price, specs: r.specs, deadline: r.deadline,
+    }
+  })
 }
 
 // ── Fetch Supplier Orders ─────────────────────────────
@@ -225,11 +228,14 @@ export async function fetchSupplierOrders(supplierName) {
     .eq('supplier', supplierName)
     .order('created_at', { ascending: false })
   if (error) { console.error('fetchSupplierOrders:', error); return [] }
-  return (data || []).map(r => ({
-    id: r.id, product: r.product, buyer: r.buyer,
-    value: r.value, stage: r.stage, progress: r.progress,
-    days: r.days, eta: r.eta, priority: r.priority,
-  }))
+  return (data || []).map(r => {
+    const buyerId = r.buyer_id ? `Buyer #${r.buyer_id.substring(0, 8)}` : (r.buyer ? `Buyer #${r.buyer.split(' ').map(w => w[0]).join('').toUpperCase()}-${r.id.slice(-4)}` : 'Verified Buyer')
+    return {
+      id: r.id, product: r.product, buyer: buyerId,
+      value: r.value, stage: r.stage, progress: r.progress,
+      days: r.days, eta: r.eta, priority: r.priority,
+    }
+  })
 }
 
 // ── Fetch Milestones for an Order ─────────────────────
@@ -475,7 +481,13 @@ export async function fetchSampleRFQsForSupplier(supplierName) {
     console.error('fetchSampleRFQsForSupplier error:', error);
     throw error;
   }
-  return data || [];
+  return (data || []).map(r => {
+    const buyerId = r.parent_rfq_id ? `Buyer #${r.parent_rfq_id.slice(-8)}` : (r.buyer ? `Buyer #${r.buyer.split(' ').map(w => w[0]).join('').toUpperCase()}-${r.id.slice(-4)}` : 'Verified Buyer')
+    return {
+      ...r,
+      buyer: buyerId
+    }
+  });
 }
 
 export async function submitSampleQuote(sampleRfqId, quoteData) {
@@ -529,7 +541,13 @@ export async function fetchSampleQuotesForSupplier(supplierName) {
     console.error('fetchSampleQuotesForSupplier error:', error);
     throw error;
   }
-  return data || [];
+  return (data || []).map(q => {
+    if (q.sample_rfqs) {
+      const buyerId = q.sample_rfqs.parent_rfq_id ? `Buyer #${q.sample_rfqs.parent_rfq_id.slice(-8)}` : (q.sample_rfqs.buyer ? `Buyer #${q.sample_rfqs.buyer.split(' ').map(w => w[0]).join('').toUpperCase()}-${q.sample_rfqs.id.slice(-4)}` : 'Verified Buyer')
+      q.sample_rfqs.buyer = buyerId
+    }
+    return q;
+  });
 }
 
 export async function fetchSampleOrdersForSupplier(supplierName) {
@@ -542,7 +560,10 @@ export async function fetchSampleOrdersForSupplier(supplierName) {
     console.error('fetchSampleOrdersForSupplier error:', error);
     throw error;
   }
-  return data || [];
+  return (data || []).map(o => ({
+    ...o,
+    buyer: o.buyer_id ? `Buyer #${o.buyer_id.substring(0, 8)}` : o.buyer_name || 'Verified Buyer'
+  }));
 }
 
 export async function upsertSampleStageSupplier(sampleOrderId, stageName, status, notes, supplierName) {

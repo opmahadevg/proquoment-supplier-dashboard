@@ -33,7 +33,7 @@ export default function QuoteSubmissionChat() {
   const [emailSent, setEmailSent] = useState(false)
   const [rfqContext] = useState({
     title: 'Steel Pipes Grade A',
-    buyer: 'Sunrise Manufacturing LLC',
+    buyer: 'Buyer #037092c1',
     quantity: '500 units',
     deadline: 'Dec 15, 2024',
     budget: '$12,000 – $18,000',

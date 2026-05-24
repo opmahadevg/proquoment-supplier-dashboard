@@ -40,8 +40,9 @@ export function transformRFQ(r) {
   return {
     id: r.id,
     title: r.title,
-    buyer: r.buyer_name,
-    buyerLogo: r.buyer_logo,
+    buyer: r.buyer_id ? `Buyer #${r.buyer_id.substring(0, 8)}` : r.buyer_name || 'Verified Buyer',
+    buyerLogo: r.buyer_id ? 'B#' : r.buyer_logo || 'VB',
+    buyerId: r.buyer_id,
     category: r.category,
     quantity: r.quantity,
     deadline: fmtDate(r.deadline),
@@ -65,8 +66,8 @@ export function transformBid(b) {
     id: b.id,
     rfqId: b.rfq_id,
     title: b.title,
-    buyer: b.buyer_name,
-    buyerLogo: b.buyer_logo,
+    buyer: `Buyer #${b.id.slice(-4)}`,
+    buyerLogo: 'B#',
     submitted: fmtDate(b.submitted_at),
     expires: fmtDate(b.expires_at),
     myBid: b.amount_display,
@@ -80,11 +81,12 @@ export function transformBid(b) {
 }
 
 export function transformBulkOrder(o) {
+  const buyerId = o.buyer_id ? `Buyer #${o.buyer_id.substring(0, 8)}` : (o.buyer_name ? `Buyer #${o.buyer_name.split(' ').map(w => w[0]).join('').toUpperCase()}-${o.id.slice(-4)}` : 'Verified Buyer')
   return {
     id: o.id,
     product: o.product,
-    buyer: o.buyer_name,
-    buyerLogo: o.buyer_logo,
+    buyer: buyerId,
+    buyerLogo: o.buyer_id ? 'B#' : (o.buyer_logo || 'VB'),
     orderValue: o.order_value,
     status: o.status,
     statusColor: o.status === 'Delivered' ? 'bg-[#e1e0ff] text-[#0f00da]'
@@ -98,11 +100,12 @@ export function transformBulkOrder(o) {
 }
 
 export function transformSampleOrder(s) {
+  const buyerId = s.buyer_id ? `Buyer #${s.buyer_id.substring(0, 8)}` : (s.buyer_name ? `Buyer #${s.buyer_name.split(' ').map(w => w[0]).join('').toUpperCase()}-${s.id.slice(-4)}` : 'Verified Buyer')
   return {
     id: s.id,
     product: s.product,
-    buyer: s.buyer_name,
-    buyerLogo: s.buyer_logo,
+    buyer: buyerId,
+    buyerLogo: s.buyer_id ? 'B#' : (s.buyer_logo || 'VB'),
     quantity: s.quantity,
     status: s.status,
     statusColor: SAMPLE_STATUS_COLORS[s.status] || 'bg-[#e8e8e8] text-[#9e9e9e]',
@@ -131,10 +134,11 @@ export function transformProduct(p) {
 }
 
 export function transformConversation(c, msgs) {
+  const buyerId = c.buyer_id ? `Buyer #${c.buyer_id.substring(0, 8)}` : `Buyer #${c.id.toString().substring(0, 8)}`
   return {
     id: c.id,
-    name: c.buyer_name,
-    avatar: c.buyer_logo,
+    name: buyerId,
+    avatar: 'B#',
     lastMessage: c.last_message,
     time: fmtTimeAgo(c.last_message_at),
     unread: c.unread_count,

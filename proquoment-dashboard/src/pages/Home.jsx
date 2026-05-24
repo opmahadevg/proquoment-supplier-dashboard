@@ -8,14 +8,14 @@ import { useDashboard } from '../context/DashboardContext'
 const STATIC_ALERTS = [
   { id: 1, type: 'rfq', icon: 'request_quote', color: 'bg-[#e1e0ff] text-[#0f00da]', title: 'New RFQ Match', desc: '3 new RFQs match your product catalogue', time: '2 min ago', action: 'View RFQs', path: '/matched-rfqs' },
   { id: 2, type: 'bid', icon: 'gavel', color: 'bg-[#ffdad6] text-[#ba1a1a]', title: 'Bid Expiring Soon', desc: 'Your bid on "Industrial Valves" expires in 2 hours', time: '1 hour ago', action: 'View Bid', path: '/my-bids' },
-  { id: 3, type: 'message', icon: 'chat', color: 'bg-[#e1e0ff] text-[#0f00da]', title: 'New Message', desc: 'Sunrise Manufacturing sent you a message', time: '3 hours ago', action: 'Reply', path: '/messages' },
+  { id: 3, type: 'message', icon: 'chat', color: 'bg-[#e1e0ff] text-[#0f00da]', title: 'New Message', desc: 'Buyer #037092c1 sent you a message', time: '3 hours ago', action: 'Reply', path: '/messages' },
 ]
 
 const recentActivity = [
-  { id: 1, type: 'RFQ Match', desc: 'Steel Pipes — Grade A, 500 units', buyer: 'Sunrise Manufacturing', time: '10 min ago', status: 'New', statusColor: 'bg-[#e1e0ff] text-[#0f00da]' },
-  { id: 2, type: 'Bid Submitted', desc: 'Industrial Valves DN50, 200 units', buyer: 'Gulf Construction Co.', time: '2 hours ago', status: 'Pending', statusColor: 'bg-[#ffdad6] text-[#ba1a1a]' },
-  { id: 3, type: 'Order Won', desc: 'Hydraulic Fittings, 1000 units', buyer: 'Al Futtaim Industries', time: '1 day ago', status: 'Won', statusColor: 'bg-[#e1e0ff] text-[#0f00da]' },
-  { id: 4, type: 'Sample Requested', desc: 'Stainless Steel Flanges', buyer: 'Emirates Steel', time: '2 days ago', status: 'Delivered', statusColor: 'bg-[#e8e8e8] text-[#555555]' },
+  { id: 1, type: 'RFQ Match', desc: 'Steel Pipes — Grade A, 500 units', buyer: 'Buyer #037092c1', time: '10 min ago', status: 'New', statusColor: 'bg-[#e1e0ff] text-[#0f00da]' },
+  { id: 2, type: 'Bid Submitted', desc: 'Industrial Valves DN50, 200 units', buyer: 'Buyer #b8c77d42', time: '2 hours ago', status: 'Pending', statusColor: 'bg-[#ffdad6] text-[#ba1a1a]' },
+  { id: 3, type: 'Order Won', desc: 'Hydraulic Fittings, 1000 units', buyer: 'Buyer #2e089254', time: '1 day ago', status: 'Won', statusColor: 'bg-[#e1e0ff] text-[#0f00da]' },
+  { id: 4, type: 'Sample Requested', desc: 'Stainless Steel Flanges', buyer: 'Buyer #1c9057b8', time: '2 days ago', status: 'Delivered', statusColor: 'bg-[#e8e8e8] text-[#555555]' },
 ]
 
 function getGreeting() {
