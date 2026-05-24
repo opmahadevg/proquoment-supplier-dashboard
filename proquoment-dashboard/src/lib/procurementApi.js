@@ -461,4 +461,263 @@ export async function updateSampleOrderStatus(orderId, status, docUrl = null, do
   return data
 }
 
+// ─────────────────────────────────────────────────────────────
+// SAMPLES FLOW API FUNCTIONS
+// ─────────────────────────────────────────────────────────────
+
+export async function fetchSampleRFQsForSupplier(supplierName) {
+  const { data, error } = await supabase
+    .from('sample_rfqs')
+    .select('*')
+    .contains('assigned_supplier_ids', [supplierName])
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('fetchSampleRFQsForSupplier error:', error);
+    throw error;
+  }
+  return data || [];
+}
+
+export async function submitSampleQuote(sampleRfqId, quoteData) {
+  const quoteId = `SQ-${Date.now()}`;
+  const { error: insertErr } = await supabase
+    .from('sample_quotes')
+    .insert({
+      id: quoteId,
+      sample_rfq_id: sampleRfqId,
+      supplier_id: quoteData.supplierId,
+      supplier_name: quoteData.supplierName,
+      unit_price: parseFloat(quoteData.unitPrice),
+      sample_qty: parseInt(quoteData.sampleQty, 10),
+      lead_time_days: parseInt(quoteData.leadTimeDays, 10),
+      payment_terms: quoteData.paymentTerms,
+      notes: quoteData.notes || '',
+      valid_until: quoteData.validUntil || '',
+      status: 'pending'
+    });
+  if (insertErr) {
+    console.error('submitSampleQuote error:', insertErr);
+    throw insertErr;
+  }
+
+  // Update sample RFQ status to bids_received
+  await supabase
+    .from('sample_rfqs')
+    .update({ status: 'bids_received', updated_at: new Date().toISOString() })
+    .eq('id', sampleRfqId);
+
+  // Insert notification for admin
+  await supabase.from('notifications').insert({
+    target_dashboard: 'admin',
+    type: 'sample_bid_received',
+    title: `New Sample Bid Received`,
+    message: `${quoteData.supplierName} submitted a quote for sample request ${sampleRfqId}.`,
+    read: false,
+    action_url: '/sample-management'
+  });
+
+  return quoteId;
+}
+
+export async function fetchSampleQuotesForSupplier(supplierName) {
+  const { data, error } = await supabase
+    .from('sample_quotes')
+    .select('*, sample_rfqs(*)')
+    .eq('supplier_name', supplierName)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('fetchSampleQuotesForSupplier error:', error);
+    throw error;
+  }
+  return data || [];
+}
+
+export async function fetchSampleOrdersForSupplier(supplierName) {
+  const { data, error } = await supabase
+    .from('sample_orders')
+    .select('*')
+    .eq('supplier', supplierName)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('fetchSampleOrdersForSupplier error:', error);
+    throw error;
+  }
+  return data || [];
+}
+
+export async function upsertSampleStageSupplier(sampleOrderId, stageName, status, notes, supplierName) {
+  // 1. Check if stage exists
+  const { data: existing, error: findErr } = await supabase
+    .from('sample_stages')
+    .select('id')
+    .eq('sample_order_id', sampleOrderId)
+    .eq('stage_name', stageName)
+    .maybeSingle();
+  if (findErr) throw findErr;
+
+  let result;
+  if (existing) {
+    const { data, error: updateErr } = await supabase
+      .from('sample_stages')
+      .update({
+        status: status,
+        notes: notes,
+        updated_by: 'supplier',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', existing.id)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
+    result = data;
+  } else {
+    const { data, error: insertErr } = await supabase
+      .from('sample_stages')
+      .insert({
+        sample_order_id: sampleOrderId,
+        stage_name: stageName,
+        status: status,
+        notes: notes,
+        updated_by: 'supplier'
+      })
+      .select()
+      .single();
+    if (insertErr) throw insertErr;
+    result = data;
+  }
+
+  // Update sample order status
+  let orderStatus = 'confirmed';
+  if (stageName === 'shipping' && status === 'completed') {
+    orderStatus = 'shipped';
+  } else if (stageName === 'qa' && status === 'completed') {
+    orderStatus = 'qa_check';
+  } else if (status === 'in_progress') {
+    orderStatus = 'in_production';
+  }
+
+  await supabase
+    .from('sample_orders')
+    .update({
+      status: orderStatus,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', sampleOrderId);
+
+  // Fetch order details for notifications
+  const { data: order } = await supabase
+    .from('sample_orders')
+    .select('buyer, product, parent_rfq_id')
+    .eq('id', sampleOrderId)
+    .single();
+
+  if (order) {
+    // Notify admin
+    await supabase.from('notifications').insert({
+      target_dashboard: 'admin',
+      type: 'sample_stage_updated',
+      title: `Sample Stage Updated by Supplier: ${stageName.toUpperCase()}`,
+      message: `${supplierName} updated ${stageName} stage to ${status.toUpperCase()} for sample order ${sampleOrderId}.`,
+      read: false,
+      action_url: '/sample-management'
+    });
+
+    // Notify buyer
+    await supabase.from('notifications').insert({
+      target_dashboard: 'buyer',
+      order_id: order.parent_rfq_id || undefined,
+      type: 'sample_stage_updated',
+      title: `Sample Stage Updated: ${stageName.toUpperCase()}`,
+      message: `Supplier ${supplierName} updated stage ${stageName} to ${status.toUpperCase()} for your sample of ${order.product}.`,
+      read: false,
+      action_url: `/product-detail?id=${order.parent_rfq_id}`
+    });
+  }
+
+  return result;
+}
+
+export async function fetchSampleStagesForOrderSupplier(sampleOrderId) {
+  const { data, error } = await supabase
+    .from('sample_stages')
+    .select('*')
+    .eq('sample_order_id', sampleOrderId)
+    .order('updated_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function uploadSampleDocumentSupplier(sampleOrderId, stageName, docType, file, supplierName) {
+  const ext = file.name.split('.').pop() || 'pdf';
+  const storagePath = `${sampleOrderId}/${stageName}/${docType.replace(/\s+/g, '_')}_${Date.now()}.${ext}`;
+
+  const { error: uploadErr } = await supabase.storage
+    .from('sample-documents')
+    .upload(storagePath, file, { cacheControl: '3600', upsert: true });
+  if (uploadErr) throw uploadErr;
+
+  const { data: publicUrlData } = supabase.storage
+    .from('sample-documents')
+    .getPublicUrl(storagePath);
+  const fileUrl = publicUrlData.publicUrl;
+
+  const { data, error: insertErr } = await supabase
+    .from('sample-documents')
+    .insert({
+      sample_order_id: sampleOrderId,
+      stage_name: stageName,
+      doc_type: docType,
+      file_url: fileUrl,
+      file_name: file.name,
+      storage_path: storagePath,
+      uploaded_by: supplierName
+    })
+    .select()
+    .single();
+  if (insertErr) throw insertErr;
+
+  // Fetch order details for notifications
+  const { data: order } = await supabase
+    .from('sample_orders')
+    .select('product, parent_rfq_id')
+    .eq('id', sampleOrderId)
+    .single();
+
+  if (order) {
+    // Notify admin
+    await supabase.from('notifications').insert({
+      target_dashboard: 'admin',
+      type: 'sample_doc_uploaded',
+      title: `New Sample Document from Supplier`,
+      message: `${supplierName} uploaded ${docType} for sample order ${sampleOrderId}.`,
+      read: false,
+      action_url: '/sample-management'
+    });
+
+    // Notify buyer
+    await supabase.from('notifications').insert({
+      target_dashboard: 'buyer',
+      order_id: order.parent_rfq_id || undefined,
+      type: 'sample_doc_uploaded',
+      title: `New Sample Document Uploaded`,
+      message: `Supplier ${supplierName} uploaded ${docType} for your sample of ${order.product}.`,
+      read: false,
+      action_url: `/product-detail?id=${order.parent_rfq_id}`
+    });
+  }
+
+  return data;
+}
+
+export async function fetchSampleDocumentsForOrderSupplier(sampleOrderId) {
+  const { data, error } = await supabase
+    .from('sample_documents')
+    .select('*')
+    .eq('sample_order_id', sampleOrderId)
+    .order('uploaded_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+
 

@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useSettings, formatAmount } from '../context/SettingsContext'
 import { useDashboard } from '../context/DashboardContext'
 import { useAuth } from '../context/AuthContext'
-import { submitQuotation } from '../lib/procurementApi'
+import { submitQuotation, submitSampleQuote, fetchSampleRFQsForSupplier } from '../lib/procurementApi'
 import { submitBid } from '../lib/supplierApi'
+import { useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 
 
 const INITIAL_RFQS = [
@@ -142,6 +144,7 @@ const STATUS_TABS = [
   { key: 'reviewed', label: 'Reviewed', icon: 'visibility' },
   { key: 'bid_placed', label: 'Bid Placed', icon: 'gavel' },
   { key: 'saved', label: 'Saved', icon: 'bookmark' },
+  { key: 'sample', label: 'Sample RFQs', icon: 'science' },
 ]
 
 const SORT_OPTIONS = [
@@ -177,7 +180,60 @@ export default function MatchedRFQs() {
   const minOrderValue = parseInt(settings.preferences.minOrderValue) || 0
   const currency = settings.preferences.currency
 
-  const selectedRFQ = rfqList.find(r => r.id === selectedId) || null
+  const [sampleRfqs, setSampleRfqs] = useState([])
+  const [loadingSamples, setLoadingSamples] = useState(false)
+
+  const loadSampleRfqs = async () => {
+    if (!user) return
+    try {
+      setLoadingSamples(true)
+      const supplierName = user.company || user.name || 'Supplier'
+      const data = await fetchSampleRFQsForSupplier(supplierName)
+      setSampleRfqs(data)
+    } catch (err) {
+      console.error('Failed to load sample RFQs:', err)
+    } finally {
+      setLoadingSamples(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSampleRfqs()
+    const channel = supabase.channel('supplier-sample-rfqs-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sample_rfqs' }, () => { loadSampleRfqs(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sample_quotes' }, () => { loadSampleRfqs(); })
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
+
+  const selectedRFQ = selectedId?.startsWith('SRFQ-')
+    ? sampleRfqs.find(r => r.id === selectedId)
+      ? {
+          id: sampleRfqs.find(r => r.id === selectedId).id,
+          title: sampleRfqs.find(r => r.id === selectedId).product,
+          buyer: sampleRfqs.find(r => r.id === selectedId).buyer,
+          buyerLogo: sampleRfqs.find(r => r.id === selectedId).buyer.slice(0,2).toUpperCase(),
+          category: 'Samples & Prototypes',
+          quantity: sampleRfqs.find(r => r.id === selectedId).sample_qty || '1 unit',
+          deadline: sampleRfqs.find(r => r.id === selectedId).deadline || 'N/A',
+          budget: 'N/A',
+          budgetMin: 0,
+          match: 100,
+          status: sampleRfqs.find(r => r.id === selectedId).status === 'open' ? 'new' : sampleRfqs.find(r => r.id === selectedId).status === 'bids_received' ? 'bid_placed' : sampleRfqs.find(r => r.id === selectedId).status,
+          description: sampleRfqs.find(r => r.id === selectedId).requirements || '',
+          specs: [],
+          location: 'Contact Admin',
+          postedTime: new Date(sampleRfqs.find(r => r.id === selectedId).created_at).toLocaleDateString(),
+          bidsReceived: 0,
+          buyerVerified: true,
+          isSample: true,
+          rawSampleRFQ: sampleRfqs.find(r => r.id === selectedId)
+        }
+      : null
+    : rfqList.find(r => r.id === selectedId) || null
+
   const toggleSave = (id) => {
     setSavedIds(prev => {
       const next = new Set(prev)
@@ -200,12 +256,17 @@ export default function MatchedRFQs() {
     updateStatus(rfqId, 'bid_placed')
     setTimeout(() => {
       setSelectedId(null)
-      navigate('/my-bids')
+      if (rfqId.startsWith('SRFQ-')) {
+        loadSampleRfqs()
+        navigate('/sample-orders')
+      } else {
+        navigate('/my-bids')
+      }
     }, 2000)
   }
 
   const tabCounts = useMemo(() => {
-    const counts = { all: 0, new: 0, reviewed: 0, bid_placed: 0, saved: 0 }
+    const counts = { all: 0, new: 0, reviewed: 0, bid_placed: 0, saved: 0, sample: sampleRfqs.length }
     rfqList.forEach(r => {
       if (r.status !== 'declined') counts.all++
       if (r.status === 'new') counts.new++
@@ -214,7 +275,7 @@ export default function MatchedRFQs() {
       if (savedIds.has(r.id)) counts.saved++
     })
     return counts
-  }, [rfqList, savedIds])
+  }, [rfqList, savedIds, sampleRfqs])
 
   const filteredByMinOrder = useMemo(() => {
     if (!minOrderValue) return rfqList
@@ -224,6 +285,39 @@ export default function MatchedRFQs() {
   const hiddenByMinOrder = rfqList.filter(r => r.status !== 'declined' && r.budgetMin < minOrderValue).length
 
   const filtered = useMemo(() => {
+    if (activeTab === 'sample') {
+      const mapped = sampleRfqs.map(s => ({
+        id: s.id,
+        title: s.product,
+        buyer: s.buyer,
+        buyerLogo: s.buyer.slice(0,2).toUpperCase(),
+        category: 'Samples & Prototypes',
+        quantity: s.sample_qty || '1 unit',
+        deadline: s.deadline || 'N/A',
+        deadlineTs: 20261231,
+        budget: 'N/A',
+        budgetMin: 0,
+        match: 100,
+        status: s.status === 'open' ? 'new' : s.status === 'bids_received' ? 'bid_placed' : s.status,
+        description: s.requirements || '',
+        specs: [],
+        location: 'Contact Admin',
+        postedTime: new Date(s.created_at).toLocaleDateString(),
+        bidsReceived: 0,
+        buyerVerified: true,
+        isSample: true
+      }))
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        return mapped.filter(r =>
+          r.title.toLowerCase().includes(q) ||
+          r.buyer.toLowerCase().includes(q) ||
+          r.id.toLowerCase().includes(q)
+        )
+      }
+      return mapped
+    }
+
     let list = filteredByMinOrder.filter(r => r.status !== 'declined')
     if (activeTab === 'saved') list = list.filter(r => savedIds.has(r.id))
     else if (activeTab !== 'all') list = list.filter(r => r.status === activeTab)
@@ -242,7 +336,7 @@ export default function MatchedRFQs() {
       if (sort === 'budget') return b.budgetMin - a.budgetMin
       return 0
     })
-  }, [filteredByMinOrder, activeTab, search, sort, savedIds])
+  }, [filteredByMinOrder, activeTab, search, sort, savedIds, sampleRfqs])
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -534,6 +628,16 @@ function BidDrawer({ rfq, isSaved, bid, onClose, onToggleSave, onDecline, onMark
   const [quoteType, setQuoteType]       = useState('bulk')
 
   const [errors, setErrors]     = useState({})
+
+  useEffect(() => {
+    if (rfq?.isSample) {
+      setQuoteType('sample')
+      const qtyNum = parseInt(rfq.quantity, 10)
+      setMoq(isNaN(qtyNum) ? '1' : qtyNum.toString())
+    } else {
+      setQuoteType('bulk')
+    }
+  }, [rfq])
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted]   = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -559,7 +663,18 @@ function BidDrawer({ rfq, isSaved, bid, onClose, onToggleSave, onDecline, onMark
     setSubmitError('')
     try {
       let quoteId
-      if (isDemo) {
+      if (rfq.isSample) {
+        quoteId = await submitSampleQuote(rfq.id, {
+          supplierId: user?.supplierId || user?.id,
+          supplierName: user?.company || user?.name || 'Supplier',
+          unitPrice: Number(unitPrice),
+          sampleQty: Number(moq),
+          leadTimeDays: Number(leadTimeDays),
+          paymentTerms,
+          notes: note,
+          validUntil: validUntil || undefined
+        })
+      } else if (isDemo) {
         quoteId = await submitQuotation({
           rfqId:        rfq.id,
           unitPrice:    Number(unitPrice),
@@ -884,34 +999,44 @@ function BidPanel({ rfq, unitPrice, setUnitPrice, moq, setMoq, leadTimeDays, set
     <form onSubmit={onSubmit} className="space-y-5">
 
       {/* ── Bid Type ── */}
-      <div>
-        <label className="text-xs font-medium text-[#555555] block mb-1.5">Bid Type</label>
-        <div className="flex gap-2">
-          {[
-            { key: 'bulk', label: 'Bulk Production Bid', icon: 'inventory_2' },
-            { key: 'sample', label: 'Sample Bid', icon: 'deployed_code' },
-          ].map(type => (
-            <button
-              key={type.key}
-              type="button"
-              onClick={() => {
-                setQuoteType(type.key);
-                if (type.key === 'sample' && (!moq || Number(moq) > 5)) {
-                  setMoq('1');
-                }
-              }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium border transition-colors ${
-                quoteType === type.key
-                  ? 'bg-[#0f00da] text-white border-[#0f00da]'
-                  : 'border-[#ebebeb] text-[#555555] hover:border-[#0f00da] hover:text-[#0f00da]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">{type.icon}</span>
-              {type.label}
-            </button>
-          ))}
+      {!rfq?.isSample ? (
+        <div>
+          <label className="text-xs font-medium text-[#555555] block mb-1.5">Bid Type</label>
+          <div className="flex gap-2">
+            {[
+              { key: 'bulk', label: 'Bulk Production Bid', icon: 'inventory_2' },
+              { key: 'sample', label: 'Sample Bid', icon: 'deployed_code' },
+            ].map(type => (
+              <button
+                key={type.key}
+                type="button"
+                onClick={() => {
+                  setQuoteType(type.key);
+                  if (type.key === 'sample' && (!moq || Number(moq) > 5)) {
+                    setMoq('1');
+                  }
+                }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium border transition-colors ${
+                  quoteType === type.key
+                    ? 'bg-[#0f00da] text-white border-[#0f00da]'
+                    : 'border-[#ebebeb] text-[#555555] hover:border-[#0f00da] hover:text-[#0f00da]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">{type.icon}</span>
+                {type.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-[#f0f1ff] border border-[#bfc1ff] rounded-xl px-4 py-3 flex items-center gap-2">
+          <span className="material-symbols-outlined text-[20px] text-[#0f00da]">science</span>
+          <div>
+            <p className="text-xs font-semibold text-[#0f00da]">Sample Request Bid</p>
+            <p className="text-[10px] text-[#767589]">This bid is specifically for providing prototypes/samples.</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Reference bar ── */}
       <div className="bg-white border border-[#ebebeb] rounded-xl px-4 py-3 flex items-center justify-between">
@@ -950,17 +1075,18 @@ function BidPanel({ rfq, unitPrice, setUnitPrice, moq, setMoq, leadTimeDays, set
         {/* MOQ */}
         <div>
           <label className="text-xs font-medium text-[#555555] block mb-1.5">
-            Min. Order Qty (MOQ) <span className="text-[#ba1a1a]">*</span>
+            {rfq?.isSample ? 'Sample Quantity' : 'Min. Order Qty (MOQ)'} <span className="text-[#ba1a1a]">*</span>
           </label>
           <div className={`flex items-center border rounded-xl overflow-hidden focus-within:border-[#0f00da] transition-colors ${errors.moq ? 'border-[#ba1a1a]' : 'border-[#ebebeb]'}`}>
             <input
               type="number"
               value={moq}
-              onChange={e => { setMoq(e.target.value); setErrors(er => ({ ...er, moq: '' })) }}
-              placeholder="e.g. 50"
+              onChange={e => { if (!rfq?.isSample) { setMoq(e.target.value); setErrors(er => ({ ...er, moq: '' })) } }}
+              placeholder={rfq?.isSample ? '' : "e.g. 50"}
+              readOnly={rfq?.isSample}
               min="1"
               step="1"
-              className="flex-1 px-3 py-2.5 text-sm outline-none bg-white"
+              className={`flex-1 px-3 py-2.5 text-sm outline-none bg-white ${rfq?.isSample ? 'bg-[#f7f7f7] text-[#9e9e9e] cursor-not-allowed' : ''}`}
             />
             <span className="px-3 text-[#9e9e9e] text-sm bg-[#f7f7f7] h-11 flex items-center border-l border-[#ebebeb]">pcs</span>
           </div>
@@ -970,10 +1096,17 @@ function BidPanel({ rfq, unitPrice, setUnitPrice, moq, setMoq, leadTimeDays, set
 
       {/* Budget fit indicator */}
       {unitPrice && moq && (
-        <p className={`text-xs -mt-2 flex items-center gap-1 ${withinBudget ? 'text-[#2e7d32]' : 'text-[#e65100]'}`}>
-          <span className="material-symbols-outlined text-[12px]">{withinBudget ? 'check_circle' : 'info'}</span>
-          Total: <strong>${totalValue}</strong> — {withinBudget ? 'within buyer budget ✓' : 'outside buyer budget — justify in notes'}
-        </p>
+        rfq?.isSample ? (
+          <p className="text-xs -mt-2 flex items-center gap-1 text-[#0f00da]">
+            <span className="material-symbols-outlined text-[12px]">info</span>
+            Total Sample Quote Value: <strong>${totalValue}</strong>
+          </p>
+        ) : (
+          <p className={`text-xs -mt-2 flex items-center gap-1 ${withinBudget ? 'text-[#2e7d32]' : 'text-[#e65100]'}`}>
+            <span className="material-symbols-outlined text-[12px]">{withinBudget ? 'check_circle' : 'info'}</span>
+            Total: <strong>${totalValue}</strong> — {withinBudget ? 'within buyer budget ✓' : 'outside buyer budget — justify in notes'}
+          </p>
+        )
       )}
 
       {/* ── Row 2: Lead Time + Valid Until ── */}
