@@ -139,7 +139,14 @@ export function AuthProvider({ children }) {
 
     if (demoMatch) {
       const { password: _p, ...safeUser } = demoMatch
-      setDemoSession({ ...safeUser, id: `demo-${safeUser.email}`, authUserId: `demo-${safeUser.email}` })
+      const DEMO_UUIDS = {
+        'ahmad@supplier.com': 'e1e0ff1a-0000-0000-0000-000000000018',
+        'priya@valvetech.in': 'e1e0ff1a-0000-0000-0000-000000000019',
+        'li.wei@precisionmfg.com': 'e1e0ff1a-0000-0000-0000-000000000020',
+        'raj@hydrocast.in': 'e1e0ff1a-0000-0000-0000-000000000021'
+      }
+      const mappedUuid = DEMO_UUIDS[normalizedEmail] || `demo-${safeUser.email}`
+      setDemoSession({ ...safeUser, id: mappedUuid, authUserId: mappedUuid })
       return { ok: true }
     }
 

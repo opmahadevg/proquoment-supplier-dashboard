@@ -224,12 +224,10 @@ export async function sendMessageToAdmin(authUserId, supplierId, supplierName, t
     convId = existing.id
   } else {
     // Create new conversation
-    convId = `CONV-SUP-${Date.now()}`
     const avatar = supplierName ? supplierName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'S'
-    const { error: createErr } = await supabase
+    const { data: newConv, error: createErr } = await supabase
       .from('conversations')
       .insert({
-        id: convId,
         buyer_name: supplierName || 'Supplier',
         buyer_logo: avatar,
         last_message: text,
@@ -239,8 +237,11 @@ export async function sendMessageToAdmin(authUserId, supplierId, supplierName, t
         supplier_id: authUserId,
         is_demo: false
       })
+      .select('id')
+      .single()
 
     if (createErr) throw createErr
+    convId = newConv.id
   }
 
   // 2. Insert the message
