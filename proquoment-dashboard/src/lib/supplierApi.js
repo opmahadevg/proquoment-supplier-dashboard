@@ -181,11 +181,9 @@ export async function getConversations(authUserId, isDemo = false) {
 
   if (msgErr) throw msgErr
 
-  // Filter conversations: only show conversations where admin (from_me: true) has replied
-  const repliedConvs = convs.filter(c => {
-    const cMsgs = (msgs || []).filter(m => m.conversation_id === c.id)
-    return cMsgs.some(m => m.from_me === true)
-  })
+  // Show all conversations, do not filter them out just because admin has not replied yet
+  const repliedConvs = convs
+
 
   return repliedConvs.map(c => {
     const cMsgs = (msgs || []).filter(m => m.conversation_id === c.id)
