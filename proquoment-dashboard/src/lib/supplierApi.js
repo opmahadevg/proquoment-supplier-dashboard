@@ -193,7 +193,7 @@ export async function getConversations(authUserId, isDemo = false) {
       avatar: 'A',
       lastMessage: c.last_message,
       time: fmtTimeAgo(c.last_message_at),
-      unread: c.unread_count || 0,
+      unread: c.unread_supplier || 0,
       online: true,
       messages: cMsgs.map(m => ({
         id: m.id,
@@ -204,6 +204,16 @@ export async function getConversations(authUserId, isDemo = false) {
     }
   })
 }
+
+export async function markConversationRead(convId) {
+  const { error } = await supabase
+    .from('conversations')
+    .update({ unread_supplier: 0 })
+    .eq('id', convId)
+  if (error) console.error('markConversationRead error:', error)
+  return true
+}
+
 
 export async function sendMessageToAdmin(authUserId, supplierId, supplierName, text, isDemo = false) {
   if (!authUserId) return null

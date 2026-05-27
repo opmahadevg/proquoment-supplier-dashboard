@@ -49,6 +49,9 @@ export default function Messages() {
           setConvList(data)
           setActiveConv(data[0])
           setMessages(data[0].messages)
+          if (data[0].unread > 0) {
+            supplierApi.markConversationRead(data[0].id)
+          }
         } else {
           setConvList([defaultAdminConv])
           setActiveConv(defaultAdminConv)
@@ -78,6 +81,9 @@ export default function Messages() {
             const current = data.find(c => c.id === activeId) || data[0]
             setActiveConv(current)
             setMessages(current.messages)
+            if (current.id && current.id !== 'new-conv') {
+              supplierApi.markConversationRead(current.id)
+            }
           }
         })
       }
@@ -92,6 +98,9 @@ export default function Messages() {
     setActiveConv(conv)
     setMessages(conv.messages)
     setMobileView('chat')
+    if (conv.id !== 'new-conv') {
+      supplierApi.markConversationRead(conv.id)
+    }
   }
 
   const handleSend = async (e) => {
