@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Navigate, Link } from 'react-router-dom'
+import { Navigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import logo from '@assets/logo.png'
@@ -14,8 +14,7 @@ const ROLE_CONFIG = {
       { icon: 'local_shipping', text: 'Manage bulk & sample orders end-to-end' },
       { icon: 'trending_up', text: 'Grow revenue with real-time procurement data' },
     ],
-    formSub: 'Set up your supplier account in under 2 minutes.',
-    emailPlaceholder: 'e.g. you@yourcompany.com',
+    formSub: 'Apply to become a verified supplier on Proquoment.',
   },
   Manufacturer: {
     headline: 'Scale production.\nWin contracts.',
@@ -26,29 +25,21 @@ const ROLE_CONFIG = {
       { icon: 'inventory_2', text: 'Manage your product catalogue with HSN & specs' },
       { icon: 'verified', text: 'Build credibility with buyer reviews & ratings' },
     ],
-    formSub: 'Set up your manufacturer account and start winning contracts.',
-    emailPlaceholder: 'e.g. you@yourfactory.com',
+    formSub: 'Apply to become a verified manufacturer on Proquoment.',
   },
 }
 
 export default function Register() {
-  useEffect(() => {
-    window.location.href = 'https://form.proquoment.in';
-  }, []);
-
-  const { user, loading, register } = useAuth()
-  const navigate = useNavigate()
-
+  const { user, loading } = useAuth()
   const [accountType, setAccountType] = useState('Supplier')
-  const [form, setForm] = useState({
-    name: '', company: '', role: '', industry: '', phone: '',
-    email: '', password: '', confirmPassword: '',
-  })
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [error, setError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [successEmail, setSuccessEmail] = useState('')
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem('registerAs')
+    if (saved === 'Supplier' || saved === 'Manufacturer') {
+      setAccountType(saved)
+      sessionStorage.removeItem('registerAs')
+    }
+  }, [])
 
   if (loading) return null
   if (user) return <Navigate to="/home" replace />
@@ -56,71 +47,8 @@ export default function Register() {
   const config = ROLE_CONFIG[accountType]
   const headlineLines = config.headline.split('\n')
 
-  const set = (field) => (e) => {
-    setForm(prev => ({ ...prev, [field]: e.target.value }))
-    setError('')
-  }
-
-  const handleTypeSwitch = (type) => {
-    setAccountType(type)
-    setError('')
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-
-    if (!form.name.trim()) { setError('Full name is required.'); return }
-    if (!form.company.trim()) { setError('Company name is required.'); return }
-    if (!form.email.trim()) { setError('Email address is required.'); return }
-    if (form.password.length < 8) { setError('Password must be at least 8 characters.'); return }
-    if (form.password !== form.confirmPassword) { setError('Passwords do not match.'); return }
-
-    setSubmitting(true)
-    const result = await register({
-      email: form.email.trim(),
-      password: form.password,
-      name: form.name.trim(),
-      company: form.company.trim(),
-      type: accountType,
-      role: form.role.trim() || 'Owner',
-      industry: form.industry.trim(),
-      phone: form.phone.trim(),
-    })
-    setSubmitting(false)
-
-    if (!result.ok) {
-      setError(result.error)
-      return
-    }
-
-    if (result.needsConfirmation) {
-      setSuccessEmail(form.email.trim())
-    } else {
-      navigate('/home', { replace: true })
-    }
-  }
-
-  if (successEmail) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white px-6">
-        <div className="w-full max-w-[420px] text-center">
-          <div className="w-16 h-16 rounded-full bg-[#f0f1ff] flex items-center justify-center mx-auto mb-5">
-            <span className="material-symbols-outlined text-[32px] text-[#0f00da]">mark_email_read</span>
-          </div>
-          <h2 className="text-2xl font-bold text-[#111111] mb-2">Check your inbox</h2>
-          <p className="text-sm text-[#555555] leading-relaxed mb-6">
-            We sent a confirmation link to <strong>{successEmail}</strong>. Click the link in the email to activate your account, then come back to sign in.
-          </p>
-          <Link
-            to="/login"
-            className="inline-block w-full bg-[#0f00da] text-white py-3 rounded-xl text-sm font-semibold hover:bg-[#2d2dff] transition-colors text-center"
-          >
-            Back to sign in
-          </Link>
-        </div>
-      </div>
-    )
+  const handleOpenForm = () => {
+    window.open('https://form.proquoment.in', '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -188,6 +116,7 @@ export default function Register() {
       <div className="flex-1 flex items-start justify-center px-6 py-10 bg-white overflow-y-auto">
         <div className="w-full max-w-[420px]">
 
+          {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 md:hidden">
             <img src={logo} alt="Proquoment" className="w-8 h-8 rounded-lg object-cover" />
             <span className="text-[#111111] font-semibold text-base">Proquoment</span>
@@ -199,7 +128,7 @@ export default function Register() {
               <button
                 key={type}
                 type="button"
-                onClick={() => handleTypeSwitch(type)}
+                onClick={() => setAccountType(type)}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 ${
                   accountType === type
                     ? 'bg-[#0f00da] text-white shadow-sm'
@@ -214,145 +143,54 @@ export default function Register() {
             ))}
           </div>
 
-          <h2 className="text-2xl font-bold text-[#111111] mb-1">Create your account</h2>
+          <h2 className="text-2xl font-bold text-[#111111] mb-1">Register as {accountType}</h2>
           <p className="text-sm text-[#9e9e9e] mb-7">{config.formSub}</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Row: name + role */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium text-[#111111] block mb-1.5">Full name <span className="text-[#ba1a1a]">*</span></label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={set('name')}
-                  placeholder="Ahmad Hassan"
-                  autoComplete="name"
-                  className="w-full border border-[#ebebeb] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0f00da] focus:ring-2 focus:ring-[#0f00da]/10 transition-all text-[#111111] placeholder-[#c6c4da]"
-                />
+          {/* Application card */}
+          <div className="border border-[#ebebeb] rounded-2xl p-6 bg-[#fafafa] mb-5">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-[#f0f1ff] flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-[22px] text-[#0f00da]">
+                  {accountType === 'Supplier' ? 'storefront' : 'factory'}
+                </span>
               </div>
               <div>
-                <label className="text-sm font-medium text-[#111111] block mb-1.5">Your role</label>
-                <input
-                  type="text"
-                  value={form.role}
-                  onChange={set('role')}
-                  placeholder="Owner, Manager…"
-                  className="w-full border border-[#ebebeb] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0f00da] focus:ring-2 focus:ring-[#0f00da]/10 transition-all text-[#111111] placeholder-[#c6c4da]"
-                />
+                <p className="text-sm font-semibold text-[#111111]">
+                  {accountType} Application Form
+                </p>
+                <p className="text-xs text-[#9e9e9e] leading-relaxed mt-0.5">
+                  Fill out our verification form to become a vetted {accountType.toLowerCase()} on Proquoment.
+                  Our team reviews within 3–5 business days.
+                </p>
               </div>
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-[#111111] block mb-1.5">Company name <span className="text-[#ba1a1a]">*</span></label>
-              <input
-                type="text"
-                value={form.company}
-                onChange={set('company')}
-                placeholder="Your company name"
-                autoComplete="organization"
-                className="w-full border border-[#ebebeb] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0f00da] focus:ring-2 focus:ring-[#0f00da]/10 transition-all text-[#111111] placeholder-[#c6c4da]"
-              />
-            </div>
-
-            {/* Row: industry + phone */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium text-[#111111] block mb-1.5">Industry</label>
-                <input
-                  type="text"
-                  value={form.industry}
-                  onChange={set('industry')}
-                  placeholder="Valves, Metals…"
-                  className="w-full border border-[#ebebeb] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0f00da] focus:ring-2 focus:ring-[#0f00da]/10 transition-all text-[#111111] placeholder-[#c6c4da]"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-[#111111] block mb-1.5">Phone</label>
-                <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={set('phone')}
-                  placeholder="+971 50 000 0000"
-                  autoComplete="tel"
-                  className="w-full border border-[#ebebeb] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0f00da] focus:ring-2 focus:ring-[#0f00da]/10 transition-all text-[#111111] placeholder-[#c6c4da]"
-                />
-              </div>
-            </div>
-
-            <div className="border-t border-[#f0f0f0] pt-1" />
-
-            <div>
-              <label className="text-sm font-medium text-[#111111] block mb-1.5">Email address <span className="text-[#ba1a1a]">*</span></label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={set('email')}
-                placeholder={config.emailPlaceholder}
-                autoComplete="email"
-                className="w-full border border-[#ebebeb] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0f00da] focus:ring-2 focus:ring-[#0f00da]/10 transition-all text-[#111111] placeholder-[#c6c4da]"
-              />
-            </div>
-
-            {/* Row: password + confirm */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium text-[#111111] block mb-1.5">Password <span className="text-[#ba1a1a]">*</span></label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={form.password}
-                    onChange={set('password')}
-                    placeholder="Min 8 characters"
-                    autoComplete="new-password"
-                    className="w-full border border-[#ebebeb] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0f00da] focus:ring-2 focus:ring-[#0f00da]/10 transition-all pr-11 text-[#111111]"
-                  />
-                  <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9e9e9e] hover:text-[#555555] transition-colors">
-                    <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
-                  </button>
+            <div className="space-y-2.5 mb-5">
+              {[
+                { icon: 'business', text: 'Company & factory information' },
+                { icon: 'inventory_2', text: 'Production capacity & product categories' },
+                { icon: 'contact_page', text: 'Contact details & certifications' },
+                { icon: 'upload_file', text: 'Document & catalogue uploads' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-[16px] text-[#0f00da]">{item.icon}</span>
+                  <span className="text-xs text-[#555555]">{item.text}</span>
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-[#111111] block mb-1.5">Confirm <span className="text-[#ba1a1a]">*</span></label>
-                <div className="relative">
-                  <input
-                    type={showConfirm ? 'text' : 'password'}
-                    value={form.confirmPassword}
-                    onChange={set('confirmPassword')}
-                    placeholder="Repeat password"
-                    autoComplete="new-password"
-                    className="w-full border border-[#ebebeb] rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0f00da] focus:ring-2 focus:ring-[#0f00da]/10 transition-all pr-11 text-[#111111]"
-                  />
-                  <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9e9e9e] hover:text-[#555555] transition-colors">
-                    <span className="material-symbols-outlined text-[18px]">{showConfirm ? 'visibility_off' : 'visibility'}</span>
-                  </button>
-                </div>
-              </div>
+              ))}
             </div>
-
-            {error && (
-              <div className="flex items-start gap-2 bg-[#fff4f4] border border-[#ffdad6] rounded-xl px-4 py-3">
-                <span className="material-symbols-outlined text-[16px] text-[#ba1a1a] flex-shrink-0 mt-0.5">error</span>
-                <p className="text-sm text-[#ba1a1a]">{error}</p>
-              </div>
-            )}
 
             <button
-              type="submit"
-              disabled={submitting}
-              className="w-full bg-[#0f00da] text-white py-3 rounded-xl text-sm font-semibold hover:bg-[#2d2dff] disabled:opacity-70 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 mt-1"
+              type="button"
+              onClick={handleOpenForm}
+              className="w-full bg-[#0f00da] text-white py-3 rounded-xl text-sm font-semibold hover:bg-[#2d2dff] transition-colors flex items-center justify-center gap-2"
             >
-              {submitting ? (
-                <>
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                  </svg>
-                  Creating account…
-                </>
-              ) : `Create ${accountType} account`}
+              <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+              Open Registration Form
             </button>
-          </form>
+            <p className="text-[11px] text-[#9e9e9e] text-center mt-2.5">
+              Opens form.proquoment.in in a new tab
+            </p>
+          </div>
 
           <p className="text-sm text-center text-[#9e9e9e] mt-5">
             Already have an account?{' '}

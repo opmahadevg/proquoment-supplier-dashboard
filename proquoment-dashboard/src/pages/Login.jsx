@@ -326,6 +326,21 @@ export default function Login() {
             </button>
           </form>
 
+          {/* Register CTA — shows only for active tab, opens form directly */}
+          <div className="mt-4">
+            <p className="text-xs text-center text-[#9e9e9e] mb-2">Don't have an account yet?</p>
+            <button
+              type="button"
+              onClick={() => window.open('https://form.proquoment.in', '_blank', 'noopener,noreferrer')}
+              className="w-full border border-[#0f00da] text-[#0f00da] py-3 rounded-xl text-sm font-semibold hover:bg-[#f0f1ff] transition-colors flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[17px]">
+                {accountType === 'Supplier' ? 'storefront' : 'factory'}
+              </span>
+              Register as {accountType}
+            </button>
+          </div>
+
           <div className="mt-5 p-3 rounded-xl bg-[#f8f9fa] border border-[#ebebeb] text-center text-xs text-[#555555] flex items-center justify-center gap-1.5">
             <span className="material-symbols-outlined text-[16px] text-[#0f00da]">info</span>
             <span>Account created by Proquoment admin. Contact support if you need credentials.</span>
