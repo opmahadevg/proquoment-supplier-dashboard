@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Sidebar from './Sidebar'
 import PageTransition from './PageTransition'
 import ErrorBoundary from './ErrorBoundary'
+import { ProquomentFooter } from './ProquomentFooter'
 import { useAuth } from '../context/AuthContext'
 import { useDashboard } from '../context/DashboardContext'
 import * as supplierApi from '../lib/supplierApi'
@@ -331,17 +332,20 @@ export default function Layout() {
 
       {/* Main Content */}
       <main
-        className={`flex-1 min-w-0 bg-white pt-14 md:pt-0 ${
+        className={`flex-1 min-w-0 bg-white pt-14 md:pt-0 flex flex-col ${
           isMessages ? 'overflow-hidden h-screen' : 'overflow-y-auto'
         }`}
       >
-        <AnimatePresence mode="wait" initial={false}>
-          <PageTransition key={location.pathname}>
-            <ErrorBoundary key={location.pathname}>
-              <Outlet />
-            </ErrorBoundary>
-          </PageTransition>
-        </AnimatePresence>
+        <div className="flex-1">
+          <AnimatePresence mode="wait" initial={false}>
+            <PageTransition key={location.pathname}>
+              <ErrorBoundary key={location.pathname}>
+                <Outlet />
+              </ErrorBoundary>
+            </PageTransition>
+          </AnimatePresence>
+        </div>
+        {!isMessages && <ProquomentFooter />}
       </main>
     </div>
   )
