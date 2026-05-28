@@ -1,0 +1,26 @@
+# Proquoment Supplier Dashboard
+
+> The Supplier Dashboard at supplier.proquoment.in is the manufacturer workspace for Indian suppliers using Proquoment — an AI-powered B2B procurement platform.
+
+Built with Vite/React and Supabase realtime.
+
+## Pages
+
+- [Home](https://supplier.proquoment.in/home): Supplier overview and stats
+- [Matched RFQs](https://supplier.proquoment.in/matched-rfqs): Buyer RFQs matched to your categories
+- [My Bids](https://supplier.proquoment.in/my-bids): Track submitted quotations
+- [Quote Submission](https://supplier.proquoment.in/quote-submission): AI-assisted quote chat
+- [Messages](https://supplier.proquoment.in/messages): Chat with admin
+- [Analytics](https://supplier.proquoment.in/analytics): Bid win rate and performance
+- [Product Catalogue](https://supplier.proquoment.in/product-catalogue): Manage product listings
+- [Sample Orders](https://supplier.proquoment.in/sample-orders): Handle buyer sample requests
+- [Bulk Orders](https://supplier.proquoment.in/bulk-orders): Manage confirmed bulk orders
+- [QC Inspections](https://supplier.proquoment.in/qc-inspections): Quality control records
+- [Company Profile](https://supplier.proquoment.in/company-profile): Factory and certification details
+- [Settings](https://supplier.proquoment.in/settings): Account configuration
+
+## Related
+
+- [Proquoment Platform](https://proquoment.in)
+- [Buyer Sourcing Dashboard](https://buyer.proquoment.in)
+- [Contact Proquoment](https://proquoment.in/contact)
