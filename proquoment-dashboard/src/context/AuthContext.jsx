@@ -94,9 +94,20 @@ export function AuthProvider({ children }) {
   }
 
   const fetchProfile = async (userId) => {
-    const { data } = await supabase.from('suppliers').select('*').eq('auth_user_id', userId).maybeSingle()
-    setProfile(data || null)
-    return data
+    try {
+      const queryPromise = supabase.from('suppliers').select('*').eq('auth_user_id', userId).maybeSingle()
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Profile fetch timed out')), 4000)
+      )
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise])
+      if (error) throw error
+      setProfile(data || null)
+      return data
+    } catch (err) {
+      console.error('AuthContext: fetchProfile failed:', err)
+      setProfile(null)
+      return null
+    }
   }
 
   useEffect(() => {
@@ -104,39 +115,56 @@ export function AuthProvider({ children }) {
 
     let mounted = true
 
-    // Safety net: if both getSession and onAuthStateChange fail/hang,
-    // resolve loading after 5s so the user never sees an infinite spinner.
+    // Safety net: force resolve loading if anything takes longer than 5 seconds
     const safetyTimer = setTimeout(() => {
-      if (mounted) setLoading(false)
+      if (mounted) {
+        console.warn('AuthContext: Safety timer triggered (5s timeout)')
+        setLoading(false)
+      }
     }, 5000)
+
+    const resolveLoading = () => {
+      if (mounted) {
+        setLoading(false)
+        clearTimeout(safetyTimer)
+      }
+    }
 
     supabase.auth.getSession()
       .then(async ({ data: { session } }) => {
         if (!mounted) return
-        clearTimeout(safetyTimer)
-        const su = session?.user ?? null
-        setSupabaseUser(su)
-        if (su) await fetchProfile(su.id)
-        setLoading(false)
+        try {
+          const su = session?.user ?? null
+          setSupabaseUser(su)
+          if (su) {
+            await fetchProfile(su.id)
+          }
+        } catch (err) {
+          console.error('AuthContext: getSession handler error:', err)
+        } finally {
+          resolveLoading()
+        }
       })
       .catch((err) => {
         console.error('AuthContext: getSession failed:', err)
-        if (!mounted) return
-        clearTimeout(safetyTimer)
-        setLoading(false) // resolve spinner even on network error
+        resolveLoading()
       })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return
-      clearTimeout(safetyTimer)
-      const su = session?.user ?? null
-      setSupabaseUser(su)
-      if (su) {
-        await fetchProfile(su.id)
-      } else {
-        setProfile(null)
+      try {
+        const su = session?.user ?? null
+        setSupabaseUser(su)
+        if (su) {
+          await fetchProfile(su.id)
+        } else {
+          setProfile(null)
+        }
+      } catch (err) {
+        console.error('AuthContext: onAuthStateChange handler error:', err)
+      } finally {
+        resolveLoading()
       }
-      setLoading(false)
     })
 
     return () => {

@@ -988,13 +988,18 @@ export default function ProfileSettings() {
   useEffect(() => {
     if (!supplierAuthId) { setLoading(false); return }
 
-    loadFullProfile(supplierAuthId).then(({ profile: p, locations: l, certifications: c, contacts: co }) => {
-      setProfile(p)
-      setLocations(l)
-      setCertifications(c)
-      setContacts(co)
-      setLoading(false)
-    })
+    loadFullProfile(supplierAuthId)
+      .then(({ profile: p, locations: l, certifications: c, contacts: co }) => {
+        setProfile(p)
+        setLocations(l)
+        setCertifications(c)
+        setContacts(co)
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('CompanyProfile: failed to load full profile:', err)
+        setLoading(false)
+      })
   }, [supplierAuthId])
 
   // Derive completion from current data

@@ -456,6 +456,15 @@ export async function notifyAdminProfileUpdate(supplierAuthId, supplierName, cha
   }
 }
 
+// Race a promise against a timeout to prevent infinite hangs
+const withTimeout = (promise, ms = 8000) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Profile query timed out after 8s')), ms)
+    )
+  ])
+
 // ─────────────────────────────────────────────────────────────
 // FULL PROFILE LOAD (all sections in parallel)
 // ─────────────────────────────────────────────────────────────
@@ -470,11 +479,11 @@ export async function loadFullProfile(supplierAuthId) {
   }
 
   const [profileRes, locsRes, certsRes, contactsRes, finRes] = await Promise.allSettled([
-    getSupplierProfile(supplierAuthId),
-    getLocations(supplierAuthId),
-    getCertifications(supplierAuthId),
-    getContacts(supplierAuthId),
-    getFinancials(supplierAuthId),
+    withTimeout(getSupplierProfile(supplierAuthId)),
+    withTimeout(getLocations(supplierAuthId)),
+    withTimeout(getCertifications(supplierAuthId)),
+    withTimeout(getContacts(supplierAuthId)),
+    withTimeout(getFinancials(supplierAuthId)),
   ])
 
   return {
