@@ -532,38 +532,69 @@ export async function submitSampleQuote(sampleRfqId, quoteData) {
 }
 
 export async function fetchSampleQuotesForSupplier(supplierName) {
-  const { data, error } = await supabase
-    .from('sample_quotes')
-    .select('*, sample_rfqs(*)')
-    .eq('supplier_name', supplierName)
-    .order('created_at', { ascending: false });
-  if (error) {
-    console.error('fetchSampleQuotesForSupplier error:', error);
-    throw error;
+  // Attempt join with sample_rfqs; fall back to plain select if join fails
+  let data = null
+  let error = null
+  try {
+    const res = await supabase
+      .from('sample_quotes')
+      .select('*, sample_rfqs(*)')
+      .eq('supplier_name', supplierName)
+      .order('created_at', { ascending: false })
+    data = res.data
+    error = res.error
+
+    // If join failed (e.g. sample_rfqs table missing), retry without join
+    if (error) {
+      console.warn('fetchSampleQuotesForSupplier join failed, retrying without join:', error.message)
+      const fallback = await supabase
+        .from('sample_quotes')
+        .select('*')
+        .eq('supplier_name', supplierName)
+        .order('created_at', { ascending: false })
+      if (fallback.error) {
+        console.error('fetchSampleQuotesForSupplier fallback error:', fallback.error)
+        return []
+      }
+      return fallback.data || []
+    }
+  } catch (err) {
+    console.error('fetchSampleQuotesForSupplier unexpected error:', err)
+    return []
   }
+
   return (data || []).map(q => {
     if (q.sample_rfqs) {
-      const buyerId = q.sample_rfqs.parent_rfq_id ? `Buyer #${q.sample_rfqs.parent_rfq_id.slice(-8)}` : (q.sample_rfqs.buyer ? `Buyer #${q.sample_rfqs.buyer.split(' ').map(w => w[0]).join('').toUpperCase()}-${q.sample_rfqs.id.slice(-4)}` : 'Verified Buyer')
+      const buyerId = q.sample_rfqs.parent_rfq_id
+        ? `Buyer #${q.sample_rfqs.parent_rfq_id.slice(-8)}`
+        : (q.sample_rfqs.buyer
+            ? `Buyer #${q.sample_rfqs.buyer.split(' ').map(w => w[0]).join('').toUpperCase()}-${q.sample_rfqs.id.slice(-4)}`
+            : 'Verified Buyer')
       q.sample_rfqs.buyer = buyerId
     }
-    return q;
-  });
+    return q
+  })
 }
 
 export async function fetchSampleOrdersForSupplier(supplierName) {
-  const { data, error } = await supabase
-    .from('sample_orders')
-    .select('*')
-    .eq('supplier', supplierName)
-    .order('created_at', { ascending: false });
-  if (error) {
-    console.error('fetchSampleOrdersForSupplier error:', error);
-    throw error;
+  try {
+    const { data, error } = await supabase
+      .from('sample_orders')
+      .select('*')
+      .eq('supplier', supplierName)
+      .order('created_at', { ascending: false })
+    if (error) {
+      console.error('fetchSampleOrdersForSupplier error:', error)
+      return []
+    }
+    return (data || []).map(o => ({
+      ...o,
+      buyer: o.buyer_id ? `Buyer #${o.buyer_id.substring(0, 8)}` : o.buyer_name || 'Verified Buyer'
+    }))
+  } catch (err) {
+    console.error('fetchSampleOrdersForSupplier unexpected error:', err)
+    return []
   }
-  return (data || []).map(o => ({
-    ...o,
-    buyer: o.buyer_id ? `Buyer #${o.buyer_id.substring(0, 8)}` : o.buyer_name || 'Verified Buyer'
-  }));
 }
 
 export async function upsertSampleStageSupplier(sampleOrderId, stageName, status, notes, supplierName) {

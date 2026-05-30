@@ -62,6 +62,7 @@ export default function SampleOrders() {
   const [quotes, setQuotes] = useState([])
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
 
   // Drawer states
@@ -75,19 +76,46 @@ export default function SampleOrders() {
   const [selectedDocType, setSelectedDocType] = useState('Process Sheet')
   const [updatingStage, setUpdatingStage] = useState(false)
 
+  // Race a promise against a timeout to prevent infinite hangs
+  const withTimeout = (promise, ms = 8000) =>
+    Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase query timed out after 8s')), ms)
+      )
+    ])
+
   const loadData = async () => {
     if (!user) return
     setLoading(true)
+    setLoadError(false)
     try {
       const sName = user.company || user.name || 'Supplier'
-      const [quotesData, ordersData] = await Promise.all([
-        fetchSampleQuotesForSupplier(sName),
-        fetchSampleOrdersForSupplier(sName)
+      const [quotesResult, ordersResult] = await Promise.allSettled([
+        withTimeout(fetchSampleQuotesForSupplier(sName)),
+        withTimeout(fetchSampleOrdersForSupplier(sName))
       ])
+
+      const quotesData = quotesResult.status === 'fulfilled' ? (quotesResult.value || []) : []
+      const ordersData = ordersResult.status === 'fulfilled' ? (ordersResult.value || []) : []
+
+      if (quotesResult.status === 'rejected') {
+        console.warn('Sample quotes fetch failed:', quotesResult.reason)
+      }
+      if (ordersResult.status === 'rejected') {
+        console.warn('Sample orders fetch failed:', ordersResult.reason)
+      }
+
+      // Only show error banner if both failed and we genuinely have no data to display
+      if (quotesResult.status === 'rejected' && ordersResult.status === 'rejected') {
+        setLoadError(true)
+      }
+
       setQuotes(quotesData)
       setOrders(ordersData)
     } catch (err) {
-      console.error('Failed to load sample quotes/orders:', err)
+      console.error('Failed to load sample data (outer catch):', err)
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -303,6 +331,18 @@ export default function SampleOrders() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
             <p className="text-sm">Syncing with Supabase...</p>
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <span className="material-symbols-outlined text-[48px] text-amber-300 block mb-3">cloud_off</span>
+            <p className="text-sm font-semibold text-gray-500">Could not load sample data</p>
+            <p className="text-xs text-gray-400 mt-1 mb-4">Check your connection or try again</p>
+            <button
+              onClick={loadData}
+              className="bg-[#0f00da] text-white px-5 py-2 rounded-full text-xs font-semibold hover:bg-[#2d2dff] transition-colors"
+            >
+              Retry
+            </button>
           </div>
         ) : activeTab === 'quotes' ? (
           /* Quotes Table */

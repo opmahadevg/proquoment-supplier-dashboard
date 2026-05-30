@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSettings, formatAmount } from '../context/SettingsContext'
+import { useAuth } from '../context/AuthContext'
 import { getAnalyticsMonthly } from '../lib/db'
 
 const PERIOD_DATA = {
@@ -83,31 +84,54 @@ const PERIOD_DATA = {
 
 const PERIODS = ['1M', '3M', '6M', '1Y']
 
+// Empty period data for fresh real accounts — all zeros, no fake revenue
+const EMPTY_MONTHS_MAP = {
+  '1M': ['W1', 'W2', 'W3', 'W4'],
+  '3M': ['Month 1', 'Month 2', 'Month 3'],
+  '6M': ['Month 1', 'Month 2', 'Month 3', 'Month 4', 'Month 5', 'Month 6'],
+  '1Y': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+}
+const getEmptyPeriodData = (p) => ({
+  months: EMPTY_MONTHS_MAP[p],
+  revenue: EMPTY_MONTHS_MAP[p].map(() => 0),
+  bids: EMPTY_MONTHS_MAP[p].map(() => 0),
+  bidsWon: EMPTY_MONTHS_MAP[p].map(() => 0),
+  topProducts: [],
+  categories: [{ name: 'No data yet', pct: 100, color: '#e1e0ff' }],
+  changeLabels: { revenue: '—', bids: '—', winRate: '—', deal: '—' },
+})
+
 export default function Analytics() {
   const { settings } = useSettings()
+  const { isDemo } = useAuth()
   const currency = settings?.preferences?.currency ?? 'USD'
   const [period, setPeriod] = useState('6M')
   const [monthlyData, setMonthlyData] = useState(null)
 
   useEffect(() => {
-    getAnalyticsMonthly().then(data => { if (data) setMonthlyData(data) })
-  }, [])
+    // Only attempt Supabase analytics fetch for real accounts
+    if (!isDemo) {
+      getAnalyticsMonthly().then(data => { if (data) setMonthlyData(data) })
+    }
+  }, [isDemo])
 
-  const fallback = PERIOD_DATA[period]
-  const useSupabase = !!monthlyData && period === '6M'
+  // Real accounts use zero-based empty data; demo accounts use PERIOD_DATA
+  const fallback = isDemo ? PERIOD_DATA[period] : getEmptyPeriodData(period)
+  const useSupabase = !isDemo && !!monthlyData && period === '6M'
   const displayMonths  = useSupabase ? monthlyData.map(d => d.month)           : fallback.months
   const displayRevenue = useSupabase ? monthlyData.map(d => d.revenue)         : fallback.revenue
   const displayBids    = useSupabase ? monthlyData.map(d => d.bids_submitted)  : fallback.bids
   const totalWon       = useSupabase ? monthlyData.reduce((s, d) => s + d.bids_won, 0) : fallback.bidsWon.reduce((s, v) => s + v, 0)
-  const displayMaxRev  = Math.max(...displayRevenue)
+  const displayMaxRev  = Math.max(...displayRevenue, 1)  // min 1 to avoid div-by-zero in SVG
   const topProducts    = fallback.topProducts
   const categories     = fallback.categories
   const changeLabels   = fallback.changeLabels
 
   const totalRevenue   = displayRevenue.reduce((s, v) => s + v, 0)
   const totalBids      = displayBids.reduce((s, v) => s + v, 0)
-  const computedWinRate = totalBids > 0 ? Math.round((totalWon / totalBids) * 100) : 33
-  const avgDeal        = totalBids > 0 ? Math.round(totalRevenue / totalBids) : 9640
+  // For real accounts with no data, show 0% and $0 (not 33% demo fallback)
+  const computedWinRate = totalBids > 0 ? Math.round((totalWon / totalBids) * 100) : (isDemo ? 33 : 0)
+  const avgDeal        = totalBids > 0 ? Math.round(totalRevenue / totalBids) : (isDemo ? 9640 : 0)
 
   const kpis = [
     { label: 'Total Revenue',  value: formatAmount(totalRevenue, currency), change: changeLabels.revenue,  icon: 'payments' },
@@ -157,6 +181,19 @@ export default function Analytics() {
           ))}
         </div>
       </div>
+
+      {/* No-data CTA banner for fresh real accounts */}
+      {!isDemo && totalRevenue === 0 && totalBids === 0 && (
+        <div className="flex items-start gap-3 bg-[#f0f0ff] border border-[#c6c4da] rounded-2xl px-4 py-3 mb-6">
+          <span className="material-symbols-outlined text-[20px] text-[#0f00da] flex-shrink-0 mt-0.5">info</span>
+          <div>
+            <p className="text-sm font-semibold text-[#0f00da]">No analytics data yet</p>
+            <p className="text-xs text-[#555555] mt-0.5">
+              Revenue, bids, and win rate will appear here automatically after you start bidding on matched RFQs.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">

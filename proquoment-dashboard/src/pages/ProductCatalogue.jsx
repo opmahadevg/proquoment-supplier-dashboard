@@ -451,14 +451,25 @@ export default function ProductCatalogue() {
   const [categories, setCategories] = useState(BASE_CATEGORIES)
 
   useEffect(() => {
-    fetchProducts(user?.id, isDemo).then(data => {
+    // For real accounts: use supplierId (bigint from suppliers table)
+    // For demo accounts: use user.id (demo UUID) or let fetchProducts use is_demo filter
+    const idToQuery = isDemo ? user?.id : user?.supplierId
+    fetchProducts(idToQuery, isDemo).then(data => {
       if (data && data.length > 0) {
         setProductList(data)
-      } else {
+      } else if (isDemo) {
+        // Demo accounts fall back to local initialProducts if Supabase has none
         setProductList(initialProducts)
+      } else {
+        // Real fresh accounts start with an empty catalogue — no demo data leak
+        setProductList([])
       }
+    }).catch(err => {
+      console.error('fetchProducts error:', err)
+      if (isDemo) setProductList(initialProducts)
+      else setProductList([])
     })
-  }, [user?.id, isDemo])
+  }, [user?.id, user?.supplierId, isDemo])
 
   const [modalMode, setModalMode] = useState(null) // 'add' | 'edit'
   const [editingProduct, setEditingProduct] = useState(null)
@@ -518,10 +529,12 @@ export default function ProductCatalogue() {
     }
 
     const payload = { ...form, sku: form.sku || generateSKU(form.name, form.category) }
+    // Use supplierId (bigint) for real accounts, user.id for demo
+    const dbSupplierId = isDemo ? user?.id : user?.supplierId
 
     try {
       if (modalMode === 'edit') {
-        const data = await updateProduct(editingProduct.id, payload, user?.id)
+        const data = await updateProduct(editingProduct.id, payload, dbSupplierId)
         if (data) {
           setProductList(prev => prev.map(p => p.id === editingProduct.id ? data : p))
         } else {
@@ -529,7 +542,7 @@ export default function ProductCatalogue() {
         }
         showToast(`"${form.name}" updated successfully`)
       } else {
-        const data = await createProduct(payload, user?.id, isDemo)
+        const data = await createProduct(payload, dbSupplierId, isDemo)
         if (data) {
           setProductList(prev => [...prev, data])
         } else {
@@ -552,8 +565,9 @@ export default function ProductCatalogue() {
     setProductList(prev => prev.filter(p => p.id !== id))
     setDeleteTarget(null)
     showToast(`"${name}" removed from catalogue`)
+    const dbSupplierId = isDemo ? user?.id : user?.supplierId
     try {
-      await deleteProduct(id, user?.id)
+      await deleteProduct(id, dbSupplierId)
     } catch (err) {
       console.error('Error deleting product:', err)
     }

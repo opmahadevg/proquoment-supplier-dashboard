@@ -87,7 +87,10 @@ export function DashboardProvider({ children }) {
           ])
 
           if (rfqsRes.status === 'fulfilled') rfqsVal = rfqsRes.value || []
+          else console.warn('DashboardContext: RFQs fetch failed:', rfqsRes.reason)
+
           if (bidsRes.status === 'fulfilled') bidsVal = bidsRes.value || []
+          else console.warn('DashboardContext: Bids fetch failed:', bidsRes.reason)
           
           if (alertsRes.status === 'fulfilled' && alertsRes.value) {
             alertsVal = alertsRes.value.map(n => ({
@@ -102,6 +105,8 @@ export function DashboardProvider({ children }) {
               path: n.action_url,
               read: n.read ?? false
             }))
+          } else if (alertsRes.status === 'rejected') {
+            console.warn('DashboardContext: Notifications fetch failed:', alertsRes.reason)
           }
 
           if (supplierId) {
@@ -111,9 +116,13 @@ export function DashboardProvider({ children }) {
             ])
             if (bulkRes.status === 'fulfilled' && bulkRes.value?.data) {
               bulkVal = bulkRes.value.data.map(transformBulkOrder)
+            } else if (bulkRes.status === 'rejected') {
+              console.warn('DashboardContext: Bulk orders fetch failed:', bulkRes.reason)
             }
             if (sampleRes.status === 'fulfilled' && sampleRes.value?.data) {
               sampleVal = sampleRes.value.data.map(transformSampleOrder)
+            } else if (sampleRes.status === 'rejected') {
+              console.warn('DashboardContext: Sample orders fetch failed:', sampleRes.reason)
             }
           }
         }
