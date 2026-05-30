@@ -104,16 +104,31 @@ export function AuthProvider({ children }) {
 
     let mounted = true
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mounted) return
-      const su = session?.user ?? null
-      setSupabaseUser(su)
-      if (su) await fetchProfile(su.id)
-      setLoading(false)
-    })
+    // Safety net: if both getSession and onAuthStateChange fail/hang,
+    // resolve loading after 5s so the user never sees an infinite spinner.
+    const safetyTimer = setTimeout(() => {
+      if (mounted) setLoading(false)
+    }, 5000)
+
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        if (!mounted) return
+        clearTimeout(safetyTimer)
+        const su = session?.user ?? null
+        setSupabaseUser(su)
+        if (su) await fetchProfile(su.id)
+        setLoading(false)
+      })
+      .catch((err) => {
+        console.error('AuthContext: getSession failed:', err)
+        if (!mounted) return
+        clearTimeout(safetyTimer)
+        setLoading(false) // resolve spinner even on network error
+      })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return
+      clearTimeout(safetyTimer)
       const su = session?.user ?? null
       setSupabaseUser(su)
       if (su) {
@@ -126,6 +141,7 @@ export function AuthProvider({ children }) {
 
     return () => {
       mounted = false
+      clearTimeout(safetyTimer)
       subscription.unsubscribe()
     }
   }, [])
